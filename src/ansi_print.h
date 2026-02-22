@@ -240,14 +240,23 @@ void ansi_init(ansi_putc_function putc_fn, ansi_flush_function flush_fn,
                char *buf, size_t buf_size);
 
 /**
- * @brief Enable ANSI color codes on Windows console.
+ * @brief Enable ANSI output with automatic terminal detection.
  *
- * On Windows, this sets the console output codepage to UTF-8 and enables
- * Virtual Terminal Processing mode which allows ANSI escape sequences to
- * work. On other platforms, this is a no-op.
+ * Performs platform-specific console setup and auto-detects whether color
+ * output should be enabled:
+ *
+ * 1. **Windows console setup** -- sets the output codepage to UTF-8 and
+ *    enables Virtual Terminal Processing for ANSI escape sequences.
+ * 2. **NO_COLOR** -- if the `NO_COLOR` environment variable is set
+ *    (any value), color output is disabled. See https://no-color.org/.
+ * 3. **isatty** -- if stdout is not a terminal (e.g. piped to a file),
+ *    color output is disabled (POSIX/Windows only).
+ *
+ * On embedded/freestanding targets this function is not needed -- color
+ * output is enabled by default after ansi_init(). Use ansi_set_enabled()
+ * for explicit control.
  *
  * @note Should be called once at program startup before any color printing.
- * @note On non-Windows platforms, ANSI codes typically work by default.
  */
 void ansi_enable(void);
 
@@ -256,6 +265,9 @@ void ansi_enable(void);
  *
  * When disabled, all color printing functions output plain text without
  * ANSI escape codes.
+ *
+ * If ansi_enable() detected the NO_COLOR environment variable, this
+ * function has no effect -- color remains permanently disabled.
  *
  * @param enabled Non-zero to enable color, zero to disable.
  */
@@ -273,8 +285,41 @@ int ansi_is_enabled(void);
  *
  * Flips the current color enable state. If enabled, becomes disabled.
  * If disabled, becomes enabled.
+ *
+ * If ansi_enable() detected the NO_COLOR environment variable, this
+ * function has no effect -- color remains permanently disabled.
  */
 void ansi_toggle(void);
+
+/**
+ * @brief Set the default foreground color.
+ *
+ * Sets a baseline foreground color that is restored whenever formatting is
+ * reset with `[/]` or when a selective close tag removes the active
+ * foreground (e.g. `[/red]`). Also immediately applies the color.
+ *
+ * @param color  Color name (e.g. "white", "green"), or NULL to clear
+ *               the default and revert to terminal default on reset.
+ *
+ * @code
+ * ansi_set_fg("white");
+ * ansi_set_bg("blue");
+ * ansi_print("[red]Error[/] back to white on blue\n");
+ * @endcode
+ */
+void ansi_set_fg(const char *color);
+
+/**
+ * @brief Set the default background color.
+ *
+ * Sets a baseline background color that is restored whenever formatting is
+ * reset with `[/]` or when a selective close tag removes the active
+ * background. Also immediately applies the color.
+ *
+ * @param color  Color name (e.g. "red", "blue"), or NULL to clear
+ *               the default and revert to terminal default on reset.
+ */
+void ansi_set_bg(const char *color);
 
 /**
  * @brief Rich-style printf with inline markup tags.

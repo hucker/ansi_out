@@ -9,13 +9,14 @@
 A lightweight C library for colored terminal output using
 [Python Rich](https://github.com/Textualize/rich)-inspired inline markup.
 Built for embedded systems, CLI tools, and log formatting -- anywhere you want
-readable, expressive colored text without pulling in a heavy framework.
+readable, expressive colored text without pulling in a heavy framework. Ideally
+used with a UTF-8 terminal for improved display of line based text, status, logs etc.
 
 `ansi_print` borrows Rich's `[tag]` and `:emoji:` syntax but is deliberately
-simple: it formats colored text and nothing more. There is no terminal
-detection, no markdown rendering, no tables or layouts, and no nested markup
-stack. It outputs ANSI escape codes through a caller-provided putc function,
-uses no dynamic allocation, and compiles with any C99 toolchain.
+simple: it formats colored text, adds emojis. There is no markdown
+rendering, and no nested markup stack. It outputs ANSI
+escape codes through a caller-provided putc function, uses no dynamic
+allocation, and compiles with any C99 toolchain.
 
 Typical use cases:
 
@@ -23,6 +24,25 @@ Typical use cases:
 - CLI tool output (errors, warnings, progress)
 - Colorized log files and diagnostic messages
 - Build system and test runner output
+
+## Why Not Manually `#define RED "\033[31m"`?
+
+A handful of escape macros is a perfectly good approach when all you need is a
+few colors on a single platform. Use that for as long as it works. `ansi_print`
+is for when those macros start turning into your own escape-code generator --
+when you need mixed attributes like `[bold yellow on red]` instead of
+`"\033[1;33;41m"`, runtime control so piped output stays clean, or features
+like emoji and bar graphs that raw escapes become complex to manage.
+
+What you get over hand-rolled macros:
+
+- Readable mixed formatting with named tags
+- Automatic reset management -- `[/]` closes whatever is open
+- Global enable/disable with `NO_COLOR` and `isatty()` detection
+- 28 named colors, 256-color palette, and text styles
+- Emoji, Unicode escapes, gradients, banners, windows, and bar graphs
+- Portable output via injected putc -- desktop, UART, USB CDC, any byte stream
+- Compile-time feature flags so you only pay for what you use
 
 ## Terminal Output
 
@@ -46,6 +66,20 @@ banners, windows, and bar graphs.
 - No dynamic memory allocation (caller provides buffer)
 - Compile-time feature toggles to minimize code/data size
 - Windows console UTF-8 and ANSI escape support
+
+## Limitations
+
+- **UTF-8 terminal required.** Emoji, box-drawing, and bar graph characters are
+  UTF-8 encoded. There is no ASCII fallback.
+- **No tag nesting.** Tags are tracked by active state, not a stack. Opening
+  `[red]` while `[cyan]` is active replaces cyan; closing `[/red]` does not
+  restore cyan.
+- **Not thread-safe.** Single static state -- intended for single-threaded or
+  cooperative use. Wrap calls with a mutex if needed from multiple threads.
+- **Single output stream.** One putc destination at a time. Call `ansi_init()`
+  to switch targets, but only one is active.
+- **Silent truncation.** Output longer than the caller-provided buffer is
+  truncated with no error indication.
 
 ## Quick Start
 
@@ -244,6 +278,21 @@ remains. This matches Python Rich behavior.
 ansi_print("[bold][green]OK[/green] still bold[/bold]\n");
 ```
 
+### Default Colors
+
+`ansi_set_fg()` and `ansi_set_bg()` set baseline colors that are restored
+whenever `[/]` resets formatting or a selective close removes the active color.
+This is useful for applications that run with a fixed color scheme.
+
+```c
+ansi_set_fg("white");
+ansi_set_bg("blue");
+ansi_print("[red]Error:[/] back to white on blue\n");
+ansi_print("[bold]Bold[/] still white on blue\n");
+
+ansi_set_fg(NULL);  /* clear -- [/] reverts to terminal default */
+```
+
 ### Escaped Characters
 
 | Sequence | Output                                      |
@@ -345,13 +394,13 @@ ansi_print(":cross: [red]Build failed[/]\n");
 
 | Shortcode       | Emoji | Shortcode     | Emoji | Shortcode     | Emoji |
 | --------------- | ----- | ------------- | ----- | ------------- | ----- |
-| `:check:`       | ✅    | `:cross:`     | ❌    | `:warning:`   | ⚠     |
+| `:check:`       | ✅     | `:cross:`     | ❌     | `:warning:`   | ⚠     |
 | `:info:`        | ℹ     | `:arrow:`     | ➡     | `:gear:`      | ⚙     |
-| `:clock:`       | ⏰    | `:hourglass:` | ⌛    | `:thumbs_up:` | 👍    |
-| `:thumbs_down:` | 👎    | `:star:`      | ⭐    | `:fire:`      | 🔥    |
-| `:rocket:`      | 🚀    | `:zap:`       | ⚡    | `:bug:`       | 🐛    |
-| `:wrench:`      | 🔧    | `:bell:`      | 🔔    | `:sparkles:`  | ✨    |
-| `:package:`     | 📦    | `:link:`      | 🔗    | `:stop:`      | 🛑    |
+| `:clock:`       | ⏰     | `:hourglass:` | ⌛     | `:thumbs_up:` | 👍     |
+| `:thumbs_down:` | 👎     | `:star:`      | ⭐     | `:fire:`      | 🔥     |
+| `:rocket:`      | 🚀     | `:zap:`       | ⚡     | `:bug:`       | 🐛     |
+| `:wrench:`      | 🔧     | `:bell:`      | 🔔     | `:sparkles:`  | ✨     |
+| `:package:`     | 📦     | `:link:`      | 🔗     | `:stop:`      | 🛑     |
 
 ### Extended Emoji (ANSI_PRINT_EXTENDED_EMOJI, ~140 more)
 
@@ -585,13 +634,17 @@ ansi_print("CPU %s\n",
 void ansi_init(ansi_putc_function putc_fn, ansi_flush_function flush_fn,
                char *buf, size_t buf_size);
 
-/* Enable ANSI on Windows console (no-op on other platforms) */
+/* Enable ANSI on Windows console, detect NO_COLOR and isatty */
 void ansi_enable(void);
 
 /* Color enable/disable */
 void ansi_set_enabled(int enabled);
 int  ansi_is_enabled(void);
 void ansi_toggle(void);
+
+/* Default foreground/background (restored on [/] reset) */
+void ansi_set_fg(const char *color);
+void ansi_set_bg(const char *color);
 
 /* Rich-style printf with [tag] markup */
 void ansi_print(const char *fmt, ...);
@@ -688,14 +741,14 @@ Note: colors and styles render in the terminal but are shown as plain text above
 
 ### Targets
 
-| Target              | Description                                 |
-| ------------------- | ------------------------------------------- |
-| `make all`          | Build CLI tool, run tests, and generate docs|
-| `make ansiprint`    | Build CLI executable only                   |
-| `make test`         | Build and run tests (all features enabled)  |
-| `make test-minimal` | Build and run tests (all features disabled) |
-| `make docs`         | Generate Doxygen HTML documentation         |
-| `make clean`        | Remove build artifacts (including docs)     |
+| Target              | Description                                  |
+| ------------------- | -------------------------------------------- |
+| `make all`          | Build CLI tool, run tests, and generate docs |
+| `make ansiprint`    | Build CLI executable only                    |
+| `make test`         | Build and run tests (all features enabled)   |
+| `make test-minimal` | Build and run tests (all features disabled)  |
+| `make docs`         | Generate Doxygen HTML documentation          |
+| `make clean`        | Remove build artifacts (including docs)      |
 
 ### Test Output
 

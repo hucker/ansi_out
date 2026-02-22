@@ -2,6 +2,7 @@
 #include "ansi_print.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 /* ------------------------------------------------------------------ */
 /* Capture buffer — collects all output from ansi_print into a string */
@@ -38,6 +39,8 @@ void setUp(void)
     capture_reset();
     ansi_init(capture_putc, capture_flush, fmt_buf, sizeof(fmt_buf));
     ansi_set_enabled(1);
+    ansi_set_fg(NULL);
+    ansi_set_bg(NULL);
 }
 
 void tearDown(void) { }
@@ -92,6 +95,82 @@ void test_set_enabled(void)
     ansi_set_enabled(1);
     TEST_ASSERT_TRUE(ansi_is_enabled());
 }
+
+/* ------------------------------------------------------------------ */
+/* NO_COLOR / ansi_enable tests                                       */
+/* ------------------------------------------------------------------ */
+
+#if defined(_WIN32) || defined(__unix__) || defined(__APPLE__)
+
+/* Portable env var removal -- MinGW lacks unsetenv() */
+#ifdef _WIN32
+static void clear_no_color(void) { _putenv("NO_COLOR="); }
+#else
+static void clear_no_color(void) { unsetenv("NO_COLOR"); }
+#endif
+
+void test_enable_no_color_disables(void)
+{
+    putenv("NO_COLOR=1");
+    ansi_enable();
+    TEST_ASSERT_FALSE(ansi_is_enabled());
+    clear_no_color();
+}
+
+void test_enable_no_color_locks(void)
+{
+    putenv("NO_COLOR=1");
+    ansi_enable();
+    /* set_enabled should be blocked by lock */
+    ansi_set_enabled(1);
+    TEST_ASSERT_FALSE(ansi_is_enabled());
+    clear_no_color();
+}
+
+void test_enable_no_color_toggle_locked(void)
+{
+    putenv("NO_COLOR=1");
+    ansi_enable();
+    /* toggle should be blocked by lock */
+    ansi_toggle();
+    TEST_ASSERT_FALSE(ansi_is_enabled());
+    clear_no_color();
+}
+
+void test_enable_no_color_strips_tags(void)
+{
+    putenv("NO_COLOR=1");
+    ansi_enable();
+    ansi_print("[red]hello[/]");
+    TEST_ASSERT_EQUAL_STRING("hello", capture_buf);
+    clear_no_color();
+}
+
+void test_init_resets_lock(void)
+{
+    putenv("NO_COLOR=1");
+    ansi_enable();
+    TEST_ASSERT_FALSE(ansi_is_enabled());
+    clear_no_color();
+    /* ansi_init resets the lock */
+    ansi_init(capture_putc, capture_flush, fmt_buf, sizeof(fmt_buf));
+    ansi_set_enabled(1);
+    TEST_ASSERT_TRUE(ansi_is_enabled());
+}
+
+#if !defined(_WIN32)
+void test_enable_no_color_empty_value(void)
+{
+    /* NO_COLOR spec: any value counts, even empty string.
+       Windows _putenv("VAR=") removes the var, so this only applies on POSIX. */
+    putenv("NO_COLOR=");
+    ansi_enable();
+    TEST_ASSERT_FALSE(ansi_is_enabled());
+    clear_no_color();
+}
+#endif
+
+#endif /* _WIN32 || __unix__ || __APPLE__ */
 
 void test_puts_plain(void)
 {
@@ -1322,6 +1401,123 @@ void test_window_utf8_counting(void)
 #endif /* ANSI_PRINT_BAR */
 
 /* ------------------------------------------------------------------ */
+/* Default fg/bg tests                                                */
+/* ------------------------------------------------------------------ */
+
+void test_set_fg_applies_color(void)
+{
+    ansi_set_fg("red");
+    capture_reset();
+    ansi_print("hello");
+    /* "hello" should already be in red (fg set before print) --
+       the tag state carries the default fg, so no extra escape needed.
+       But after [/] reset it should reapply red. */
+    capture_reset();
+    ansi_print("[green]x[/]y");
+    /* After [/], red should be reapplied: look for red escape \x1b[31m */
+    const char *reset = strstr(capture_buf, "\x1b[0m");
+    TEST_ASSERT_NOT_NULL(reset);
+    /* After the reset, red fg should follow */
+    TEST_ASSERT_NOT_NULL(strstr(reset, "\x1b[31m"));
+}
+
+void test_set_bg_applies_color(void)
+{
+    ansi_set_bg("blue");
+    capture_reset();
+    ansi_print("[red]x[/]y");
+    /* After [/], blue bg should be reapplied: \x1b[44m */
+    const char *reset = strstr(capture_buf, "\x1b[0m");
+    TEST_ASSERT_NOT_NULL(reset);
+    TEST_ASSERT_NOT_NULL(strstr(reset, "\x1b[44m"));
+}
+
+void test_set_fg_and_bg_restore_on_reset(void)
+{
+    ansi_set_fg("white");
+    ansi_set_bg("red");
+    capture_reset();
+    ansi_print("[cyan]x[/]y");
+    /* After [/], both white fg (\x1b[37m) and red bg (\x1b[41m) restored */
+    const char *reset = strstr(capture_buf, "\x1b[0m");
+    TEST_ASSERT_NOT_NULL(reset);
+    TEST_ASSERT_NOT_NULL(strstr(reset, "\x1b[37m"));
+    TEST_ASSERT_NOT_NULL(strstr(reset, "\x1b[41m"));
+}
+
+void test_set_fg_selective_close_restores_default(void)
+{
+    ansi_set_fg("green");
+    capture_reset();
+    ansi_print("[red]x[/red]y");
+    /* After [/red], should reset and reapply green (\x1b[32m) */
+    const char *reset = strstr(capture_buf, "\x1b[0m");
+    TEST_ASSERT_NOT_NULL(reset);
+    TEST_ASSERT_NOT_NULL(strstr(reset, "\x1b[32m"));
+}
+
+void test_set_fg_null_clears_default(void)
+{
+    ansi_set_fg("red");
+    ansi_set_fg(NULL);
+    capture_reset();
+    ansi_print("[green]x[/]y");
+    /* After [/], no red should appear -- default was cleared */
+    const char *reset = strstr(capture_buf, "\x1b[0m");
+    TEST_ASSERT_NOT_NULL(reset);
+    /* After reset, the only thing should be "y" -- no color reapplied */
+    TEST_ASSERT_NULL(strstr(reset + 4, "\x1b[31m"));
+}
+
+void test_set_bg_null_clears_default(void)
+{
+    ansi_set_bg("blue");
+    ansi_set_bg(NULL);
+    capture_reset();
+    ansi_print("[red]x[/]y");
+    /* After [/], no blue bg should appear */
+    const char *reset = strstr(capture_buf, "\x1b[0m");
+    TEST_ASSERT_NOT_NULL(reset);
+    TEST_ASSERT_NULL(strstr(reset + 4, "\x1b[44m"));
+}
+
+void test_set_fg_disabled_no_output(void)
+{
+    ansi_set_enabled(0);
+    ansi_set_fg("red");
+    capture_reset();
+    ansi_print("hello");
+    /* No escape codes when disabled */
+    TEST_ASSERT_EQUAL_STRING("hello", capture_buf);
+}
+
+void test_set_fg_unknown_color_ignored(void)
+{
+    ansi_set_fg("nosuchcolor");
+    capture_reset();
+    ansi_print("[green]x[/]y");
+    /* After [/], no default fg should be reapplied (unknown was ignored) */
+    const char *reset = strstr(capture_buf, "\x1b[0m");
+    TEST_ASSERT_NOT_NULL(reset);
+    /* Only "y" after reset, no extra fg code */
+    const char *after_reset = reset + 4; /* skip \x1b[0m */
+    TEST_ASSERT_EQUAL_CHAR('y', *after_reset);
+}
+
+void test_set_fg_immediate_emit(void)
+{
+    /* ansi_set_fg should emit the color code immediately */
+    ansi_set_fg("red");
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[31m"));
+}
+
+void test_set_bg_immediate_emit(void)
+{
+    ansi_set_bg("blue");
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[44m"));
+}
+
+/* ------------------------------------------------------------------ */
 /* Config banner & runner                                             */
 /* ------------------------------------------------------------------ */
 
@@ -1354,6 +1550,19 @@ int main(void)
     RUN_TEST(test_color_enabled_emits_ansi);
     RUN_TEST(test_toggle);
     RUN_TEST(test_set_enabled);
+
+#if defined(_WIN32) || defined(__unix__) || defined(__APPLE__)
+    /* NO_COLOR / ansi_enable */
+    RUN_TEST(test_enable_no_color_disables);
+    RUN_TEST(test_enable_no_color_locks);
+    RUN_TEST(test_enable_no_color_toggle_locked);
+    RUN_TEST(test_enable_no_color_strips_tags);
+    RUN_TEST(test_init_resets_lock);
+#if !defined(_WIN32)
+    RUN_TEST(test_enable_no_color_empty_value);
+#endif
+#endif
+
     RUN_TEST(test_puts_plain);
     RUN_TEST(test_puts_with_color);
     RUN_TEST(test_escaped_brackets);
@@ -1389,6 +1598,18 @@ int main(void)
     RUN_TEST(test_on_with_trailing_spaces);
     RUN_TEST(test_empty_tag_ignored);
     RUN_TEST(test_unclosed_bracket);
+
+    /* Default fg/bg */
+    RUN_TEST(test_set_fg_applies_color);
+    RUN_TEST(test_set_bg_applies_color);
+    RUN_TEST(test_set_fg_and_bg_restore_on_reset);
+    RUN_TEST(test_set_fg_selective_close_restores_default);
+    RUN_TEST(test_set_fg_null_clears_default);
+    RUN_TEST(test_set_bg_null_clears_default);
+    RUN_TEST(test_set_fg_disabled_no_output);
+    RUN_TEST(test_set_fg_unknown_color_ignored);
+    RUN_TEST(test_set_fg_immediate_emit);
+    RUN_TEST(test_set_bg_immediate_emit);
 
 #if ANSI_PRINT_BANNER
     /* Banner */

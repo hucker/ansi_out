@@ -17,6 +17,9 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <io.h>         /* _isatty, _fileno */
+#elif defined(__unix__) || defined(__APPLE__)
+#include <unistd.h>     /* isatty, fileno */
 #endif
 
 #define RESET "\x1b[0m"
@@ -88,6 +91,9 @@ static void ansi_noop_flush(void)   { }
 static ansi_putc_function  m_putc_function  = ansi_noop_putc;
 static ansi_flush_function m_flush_function = ansi_noop_flush;
 static int m_color_enabled = 1;
+#if defined(_WIN32) || defined(__unix__) || defined(__APPLE__)
+static int m_no_color_lock = 0;  /* set by ansi_enable() when NO_COLOR env is present */
+#endif
 
 /* Emit a string by calling the user-provided putc function for each character */
 static void output_string(const char *s)
@@ -422,6 +428,8 @@ typedef struct {
 } TagState;
 
 static TagState m_tag_state;
+static const char *m_default_fg;   /* default fg restored on [/] reset */
+static const char *m_default_bg;   /* default bg restored on [/] reset */
 static char m_num_fg[16];  /* persistent storage for numeric fg code */
 static char m_num_bg[16];  /* persistent storage for numeric bg code */
 
@@ -611,11 +619,12 @@ static void parse_gradient_tag(const char *args, size_t len)
 
 static void emit_close_tag(const char *tag, size_t len)
 {
-    if (len == 0) { /* [/] resets everything */
+    if (len == 0) { /* [/] resets to defaults */
         output_string(RESET);
-        m_tag_state.fg_code = NULL;
-        m_tag_state.bg_code = NULL;
+        m_tag_state.fg_code = m_default_fg;
+        m_tag_state.bg_code = m_default_bg;
         m_tag_state.styles  = 0;
+        if (m_default_fg || m_default_bg) reapply_state();
         return;
     }
 
@@ -660,7 +669,7 @@ static void emit_close_tag(const char *tag, size_t len)
         if (a) {
             if (a->style) m_tag_state.styles &= ~a->style;
             else if (a->fg_code && a->fg_code == m_tag_state.fg_code) {
-                m_tag_state.fg_code = NULL;
+                m_tag_state.fg_code = m_default_fg;
             }
             continue;
         }
@@ -674,7 +683,7 @@ static void emit_close_tag(const char *tag, size_t len)
                 char tmp[16];
                 snprintf(tmp, sizeof(tmp), "\x1b[38;5;%dm", code);
                 if (strcmp(tmp, m_tag_state.fg_code) == 0)
-                    m_tag_state.fg_code = NULL;
+                    m_tag_state.fg_code = m_default_fg;
             }
         }
     }
@@ -686,7 +695,7 @@ static void emit_close_tag(const char *tag, size_t len)
 
         const AttrEntry *a = lookup_attr(bg, bg_len);
         if (a && !a->style && a->bg_code == m_tag_state.bg_code) {
-            m_tag_state.bg_code = NULL;
+            m_tag_state.bg_code = m_default_bg;
         } else if (bg_len > 3 && memcmp(bg, "bg:", 3) == 0) {
             char *endptr;
             long val = strtol(bg + 3, &endptr, 10);
@@ -695,7 +704,7 @@ static void emit_close_tag(const char *tag, size_t len)
                 char tmp[16];
                 snprintf(tmp, sizeof(tmp), "\x1b[48;5;%dm", code);
                 if (strcmp(tmp, m_tag_state.bg_code) == 0)
-                    m_tag_state.bg_code = NULL;
+                    m_tag_state.bg_code = m_default_bg;
             }
         }
     }
@@ -783,6 +792,10 @@ void ansi_init(ansi_putc_function putc_fn, ansi_flush_function flush_fn,
     m_flush_function = flush_fn ? flush_fn : ansi_noop_flush;
     m_buf      = buf;
     m_buf_size = buf_size;
+    m_color_enabled = 1;
+#if defined(_WIN32) || defined(__unix__) || defined(__APPLE__)
+    m_no_color_lock = 0;
+#endif
 }
 
 void ansi_enable(void)
@@ -793,11 +806,76 @@ void ansi_enable(void)
     DWORD m;
     if (GetConsoleMode(h, &m)) SetConsoleMode(h, m | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
 #endif
+
+#if defined(_WIN32) || defined(__unix__) || defined(__APPLE__)
+    /* Respect the NO_COLOR convention (https://no-color.org/).
+       Once set, ansi_set_enabled() and ansi_toggle() cannot re-enable color. */
+    if (getenv("NO_COLOR") != NULL) {
+        m_color_enabled = 0;
+        m_no_color_lock = 1;
+        return;
+    }
+
+    /* Disable color when stdout is not a terminal (e.g. piped to file) */
+#if defined(_WIN32)
+    m_color_enabled = _isatty(_fileno(stdout));
+#else
+    m_color_enabled = isatty(fileno(stdout));
+#endif
+#else
+    /* Embedded/freestanding -- no env or tty detection available */
+    m_color_enabled = 1;
+#endif
 }
 
-void ansi_set_enabled(int enabled) { m_color_enabled = enabled; }
-int  ansi_is_enabled(void) { return m_color_enabled; }
-void ansi_toggle(void) { m_color_enabled = !m_color_enabled; }
+void ansi_set_enabled(int enabled)
+{
+#if defined(_WIN32) || defined(__unix__) || defined(__APPLE__)
+    if (!m_no_color_lock)
+#endif
+        m_color_enabled = enabled;
+}
+
+int ansi_is_enabled(void)
+{
+    return m_color_enabled;
+}
+
+void ansi_toggle(void)
+{
+#if defined(_WIN32) || defined(__unix__) || defined(__APPLE__)
+    if (!m_no_color_lock)
+#endif
+        m_color_enabled = !m_color_enabled;
+}
+
+void ansi_set_fg(const char *color)
+{
+    if (!color) {
+        m_default_fg = NULL;
+        return;
+    }
+    const AttrEntry *a = lookup_attr(color, strlen(color));
+    if (a && !a->style && a->fg_code) {
+        m_default_fg = a->fg_code;
+        m_tag_state.fg_code = a->fg_code;
+        if (m_color_enabled) output_string(a->fg_code);
+    }
+}
+
+void ansi_set_bg(const char *color)
+{
+    if (!color) {
+        m_default_bg = NULL;
+        return;
+    }
+    const AttrEntry *a = lookup_attr(color, strlen(color));
+    if (a && !a->style && a->bg_code) {
+        m_default_bg = a->bg_code;
+        m_tag_state.bg_code = a->bg_code;
+        if (m_color_enabled) output_string(a->bg_code);
+    }
+}
 
 #if ANSI_PRINT_GRADIENTS
 /* Emit per-character gradient or rainbow color code if active.
