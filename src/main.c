@@ -54,12 +54,10 @@ static void demo(void)
     /* --- Rainbow & gradient --- */
 #if ANSI_PRINT_GRADIENTS
     ansi_puts("[bold]Rainbow & Gradient[/]\n");
-    ansi_puts("  ");
+    ansi_puts("  [bold]");
     ansi_rainbow("System initialization complete");
-    ansi_puts("\n");
-    ansi_puts("  [gradient red blue]Gradient: red to blue[/gradient]\n");
-    ansi_puts("  [gradient green yellow]Gradient: green to yellow[/gradient]\n");
-    ansi_puts("  [gradient cyan magenta]Gradient: cyan to magenta[/gradient]\n\n");
+    ansi_puts("[/]\n");
+    ansi_puts("  [gradient red blue]Gradient: red to blue[/gradient]\n\n");
 #endif
 
     /* --- Emoji --- */
@@ -121,40 +119,38 @@ static void demo(void)
     ansi_puts("\n");
 #endif
 
+#if ANSI_PRINT_BAR
+    /* --- Bar Graphs --- */
+    ansi_puts("[bold]Bar Graphs[/]\n");
+    {
+        char bar[128];
+        const char *names[]  = {"CPU", "MEM", "DSK", "NET", "GPU", "SWP"};
+        const char *colors[] = {"green", "cyan", "yellow", "blue", "red", "magenta"};
+        int loads[]          = {73, 45, 92, 18, 100, 15};
+        /* Each bar uses a different track character to showcase the options */
+        ansi_bar_track_t tracks[] = {
+            ANSI_BAR_LIGHT, ANSI_BAR_MED,  ANSI_BAR_HEAVY,
+            ANSI_BAR_DOT,   ANSI_BAR_LINE, ANSI_BAR_BLANK,
+        };
+        for (int i = 0; i < 6; i++) {
+            ansi_print("  %s %s\n",
+                       names[i],
+                       ansi_bar_percent(bar, sizeof(bar), colors[i], 20,
+                                        tracks[i], loads[i]));
+        }
+    }
+    ansi_puts("\n");
+#endif
+
     /* --- Simulated embedded system output --- */
     ansi_puts("[bold underline]Embedded System Boot Log[/]\n\n");
 
-    ansi_print("[dim]%s[/] [bold cyan]BOOT[/]  Hardware rev %d.%d\n",
-               "[00:00.001]", 3, 2);
-    ansi_print("[dim]%s[/] [bold cyan]INIT[/]  CPU @ %d MHz, %d KB SRAM\n",
-               "[00:00.003]", 168, 192);
-    ansi_print("[dim]%s[/] [bold cyan]INIT[/]  Flash: %d KB (%d%% used)\n",
-               "[00:00.005]", 1024, 67);
+    ansi_print("[dim]%s[/] [bold cyan]BOOT[/]  Hardware rev %d.%d  CPU @ %d MHz\n",
+               "[00:00.001]", 3, 2, 168);
 
     ansi_print("[dim]%s[/] :gear:  [cyan]Peripheral init[/] ",
                "[00:00.010]");
     ansi_puts("[white on green] OK [/]\n");
-
-    ansi_print("[dim]%s[/] :gear:  [cyan]UART1 @ %d baud[/] ",
-               "[00:00.012]", 115200);
-    ansi_puts("[white on green] OK [/]\n");
-
-    ansi_print("[dim]%s[/] :gear:  [cyan]SPI2 @ %d MHz[/] ",
-               "[00:00.014]", 42);
-    ansi_puts("[white on green] OK [/]\n");
-
-    ansi_print("[dim]%s[/] :gear:  [cyan]I2C1 @ %d kHz[/] ",
-               "[00:00.015]", 400);
-    ansi_puts("[white on green] OK [/]\n");
-
-    ansi_print("[dim]%s[/] :gear:  [cyan]ADC1 (%d ch)[/] ",
-               "[00:00.018]", 4);
-    ansi_puts("[white on green] OK [/]\n");
-
-    ansi_print("[dim]%s[/] :gear:  [cyan]Ethernet MAC[/] ",
-               "[00:00.025]");
-    ansi_puts("[white on green] OK [/]");
-    ansi_print("  link [bold green]UP[/] %d Mbps\n", 100);
 
     ansi_print("[dim]%s[/] :gear:  [cyan]CAN bus[/] ",
                "[00:00.030]");
@@ -168,13 +164,9 @@ static void demo(void)
 
     ansi_puts("\n");
     ansi_print("[dim]%s[/] [bold]TASK[/]  Starting scheduler (%d tasks)\n",
-               "[00:00.050]", 5);
+               "[00:00.050]", 3);
     ansi_print("[dim]%s[/] [bold]TASK[/]  [green]:check: sensor_read[/]   prio=%d  stk=%d\n",
                "[00:00.051]", 3, 512);
-    ansi_print("[dim]%s[/] [bold]TASK[/]  [green]:check: motor_ctrl[/]    prio=%d  stk=%d\n",
-               "[00:00.052]", 2, 1024);
-    ansi_print("[dim]%s[/] [bold]TASK[/]  [green]:check: comms_handler[/] prio=%d  stk=%d\n",
-               "[00:00.053]", 4, 768);
     ansi_print("[dim]%s[/] [bold]TASK[/]  [red]:cross: data_logger[/]   prio=%d  stk=%d",
                "[00:00.054]", 5, 256);
     ansi_puts("  [red]stack overflow[/]\n");

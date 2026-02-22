@@ -807,6 +807,16 @@ void test_minimal_bright_color_ignored(void)
 }
 #endif
 
+#if !ANSI_PRINT_BAR
+void test_minimal_bar_not_available(void)
+{
+    /* ansi_bar() not available -- this test just confirms compilation */
+    ansi_set_enabled(0);
+    ansi_print("no bar");
+    TEST_ASSERT_EQUAL_STRING("no bar", capture_buf);
+}
+#endif
+
 /* ------------------------------------------------------------------ */
 /* Banner tests                                                       */
 /* ------------------------------------------------------------------ */
@@ -1081,6 +1091,237 @@ void test_window_markup(void)
 #endif /* ANSI_PRINT_WINDOW */
 
 /* ------------------------------------------------------------------ */
+/* Bar graph tests                                                     */
+/* ------------------------------------------------------------------ */
+
+#if ANSI_PRINT_BAR
+
+void test_bar_full(void)
+{
+    char bar[128];
+    ansi_bar(bar, sizeof(bar), NULL, 5, ANSI_BAR_LIGHT, 100, 0, 100);
+    /* 5 full blocks, no empty track, no color tags */
+    TEST_ASSERT_EQUAL(15, (int)strlen(bar));  /* 5 * 3 bytes */
+    for (int i = 0; i < 5; i++)
+        TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x88", bar + i*3, 3);
+}
+
+void test_bar_empty(void)
+{
+    char bar[128];
+    ansi_bar(bar, sizeof(bar), NULL, 5, ANSI_BAR_LIGHT, 0, 0, 100);
+    /* 5 empty blocks */
+    TEST_ASSERT_EQUAL(15, (int)strlen(bar));
+    for (int i = 0; i < 5; i++)
+        TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x91", bar + i*3, 3);
+}
+
+void test_bar_half(void)
+{
+    char bar[128];
+    ansi_bar(bar, sizeof(bar), NULL, 4, ANSI_BAR_LIGHT, 50, 0, 100);
+    /* 50% of 4 = 2 full + 2 empty */
+    TEST_ASSERT_EQUAL(12, (int)strlen(bar));
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x88", bar + 0, 3);
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x88", bar + 3, 3);
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x91", bar + 6, 3);
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x91", bar + 9, 3);
+}
+
+void test_bar_partial_block(void)
+{
+    char bar[128], bar2[128];
+    /* 25% of 4 = 8 eighths -> 1 full + 0 partial + 3 empty */
+    ansi_bar(bar, sizeof(bar), NULL, 4, ANSI_BAR_LIGHT, 25, 0, 100);
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x88", bar + 0, 3); /* 1 full */
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x91", bar + 3, 3); /* empty */
+
+    /* 50% of 5 = 20 eighths -> 2 full, 4/8 partial, 2 empty */
+    ansi_bar(bar2, sizeof(bar2), NULL, 5, ANSI_BAR_LIGHT, 50, 0, 100);
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x88", bar2 + 0, 3); /* full */
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x88", bar2 + 3, 3); /* full */
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x8c", bar2 + 6, 3); /* half block */
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x91", bar2 + 9, 3); /* empty */
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x91", bar2 + 12, 3); /* empty */
+}
+
+void test_bar_with_color(void)
+{
+    char bar[128];
+    ansi_bar(bar, sizeof(bar), "red", 3, ANSI_BAR_LIGHT, 100, 0, 100);
+    /* Should start with [red] and have [/] after blocks */
+    TEST_ASSERT_NOT_NULL(strstr(bar, "[red]"));
+    TEST_ASSERT_NOT_NULL(strstr(bar, "[/]"));
+    TEST_ASSERT_NOT_NULL(strstr(bar, "\xe2\x96\x88"));
+}
+
+void test_bar_clamp_over(void)
+{
+    char bar[128];
+    ansi_bar(bar, sizeof(bar), NULL, 3, ANSI_BAR_LIGHT, 200, 0, 100);
+    /* Clamped to 100%: 3 full blocks */
+    TEST_ASSERT_EQUAL(9, (int)strlen(bar));
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x88", bar + 0, 3);
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x88", bar + 3, 3);
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x88", bar + 6, 3);
+}
+
+void test_bar_clamp_under(void)
+{
+    char bar[128];
+    ansi_bar(bar, sizeof(bar), NULL, 3, ANSI_BAR_LIGHT, -50, 0, 100);
+    /* Clamped to 0%: 3 empty */
+    TEST_ASSERT_EQUAL(9, (int)strlen(bar));
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x91", bar + 0, 3);
+}
+
+void test_bar_zero_range(void)
+{
+    char bar[128];
+    /* max == min: treat as 100% */
+    ansi_bar(bar, sizeof(bar), NULL, 3, ANSI_BAR_LIGHT, 5, 5, 5);
+    TEST_ASSERT_EQUAL(9, (int)strlen(bar));
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x88", bar + 0, 3);
+}
+
+void test_bar_zero_width(void)
+{
+    char bar[128];
+    ansi_bar(bar, sizeof(bar), NULL, 0, ANSI_BAR_LIGHT, 50, 0, 100);
+    TEST_ASSERT_EQUAL_STRING("", bar);
+}
+
+void test_bar_negative_range(void)
+{
+    char bar[128];
+    /* 0 in range [-100,100] = 50% of 4 = 2 full + 2 empty */
+    ansi_bar(bar, sizeof(bar), NULL, 4, ANSI_BAR_LIGHT, 0, -100, 100);
+    TEST_ASSERT_EQUAL(12, (int)strlen(bar));
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x88", bar + 0, 3);
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x88", bar + 3, 3);
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x91", bar + 6, 3);
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x91", bar + 9, 3);
+}
+
+void test_bar_float_value(void)
+{
+    char bar[128];
+    /* 0.5 in range [0.0, 1.0] = 50% of 4 = 2 full + 2 empty */
+    ansi_bar(bar, sizeof(bar), NULL, 4, ANSI_BAR_LIGHT, 0.5, 0.0, 1.0);
+    TEST_ASSERT_EQUAL(12, (int)strlen(bar));
+}
+
+void test_bar_inline_with_text(void)
+{
+    char bar[128];
+    ansi_set_enabled(0);
+    ansi_print("CPU: %s!",
+               ansi_bar(bar, sizeof(bar), NULL, 3, ANSI_BAR_LIGHT, 100, 0, 100));
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "CPU: "));
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x96\x88"));
+    TEST_ASSERT_EQUAL('!', capture_buf[strlen(capture_buf) - 1]);
+}
+
+void test_bar_null_color(void)
+{
+    char bar[128];
+    ansi_bar(bar, sizeof(bar), NULL, 5, ANSI_BAR_LIGHT, 50, 0, 100);
+    /* No [color] or [/] tags */
+    TEST_ASSERT_NULL(strstr(bar, "["));
+    TEST_ASSERT_NULL(strstr(bar, "]"));
+}
+
+void test_bar_blank_track(void)
+{
+    char bar[128];
+    ansi_bar(bar, sizeof(bar), NULL, 4, ANSI_BAR_BLANK, 50, 0, 100);
+    /* 50% of 4 = 2 full + 2 spaces */
+    TEST_ASSERT_EQUAL(8, (int)strlen(bar));  /* 2*3 + 2*1 */
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x88", bar + 0, 3);
+    TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x88", bar + 3, 3);
+    TEST_ASSERT_EQUAL(' ', bar[6]);
+    TEST_ASSERT_EQUAL(' ', bar[7]);
+}
+
+void test_bar_percent(void)
+{
+    char bar[128];
+    ansi_bar_percent(bar, sizeof(bar), NULL, 5, ANSI_BAR_LIGHT, 73);
+    /* Should end with " 73%" */
+    TEST_ASSERT_NOT_NULL(strstr(bar, " 73%"));
+    /* Should contain block characters */
+    TEST_ASSERT_NOT_NULL(strstr(bar, "\xe2\x96\x88"));
+}
+
+void test_bar_percent_clamp(void)
+{
+    char bar[128];
+    ansi_bar_percent(bar, sizeof(bar), NULL, 3, ANSI_BAR_LIGHT, 150);
+    TEST_ASSERT_NOT_NULL(strstr(bar, " 100%"));
+    ansi_bar_percent(bar, sizeof(bar), NULL, 3, ANSI_BAR_LIGHT, -10);
+    TEST_ASSERT_NOT_NULL(strstr(bar, " 0%"));
+}
+
+#if ANSI_PRINT_WINDOW
+void test_bar_in_window(void)
+{
+    char bar[128];
+    ansi_set_enabled(0);
+    ansi_window_start(NULL, 15, ANSI_ALIGN_LEFT, NULL);
+    ansi_window_line(ANSI_ALIGN_LEFT, "V:%s",
+                     ansi_bar(bar, sizeof(bar), NULL, 5,
+                              ANSI_BAR_LIGHT, 50, 0, 100));
+    ansi_window_end();
+    /* "V:" is 2 chars + bar is 5 chars = 7, fits in width 15 */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x96\x88"));
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x96\x91"));
+    /* Borders present */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x95\x94"));
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x95\x9a"));
+}
+
+void test_bar_in_window_truncate(void)
+{
+    char bar[128];
+    ansi_set_enabled(0);
+    ansi_window_start(NULL, 3, ANSI_ALIGN_LEFT, NULL);
+    ansi_window_line(ANSI_ALIGN_LEFT, "%s",
+                     ansi_bar(bar, sizeof(bar), NULL, 10,
+                              ANSI_BAR_LIGHT, 100, 0, 100));
+    ansi_window_end();
+    /* Only 3 visible chars should appear in window */
+    int block_count = 0;
+    const char *s = capture_buf;
+    while ((s = strstr(s, "\xe2\x96\x88")) != NULL) { block_count++; s += 3; }
+    TEST_ASSERT_EQUAL(3, block_count);
+}
+
+void test_window_utf8_counting(void)
+{
+    char bar[128];
+    /* Verify UTF-8 multi-byte chars are counted as 1 visible char, not 3 */
+    ansi_set_enabled(0);
+    ansi_window_start(NULL, 10, ANSI_ALIGN_LEFT, NULL);
+    /* "hello" is 5 ASCII chars */
+    ansi_window_line(ANSI_ALIGN_LEFT, "hello");
+    ansi_window_end();
+    capture_reset();
+
+    /* Now test with UTF-8 block chars (each 3 bytes but 1 visible) */
+    ansi_window_start(NULL, 10, ANSI_ALIGN_LEFT, NULL);
+    ansi_window_line(ANSI_ALIGN_LEFT, "%s",
+                     ansi_bar(bar, sizeof(bar), NULL, 5,
+                              ANSI_BAR_LIGHT, 100, 0, 100));
+    ansi_window_end();
+    /* Bar is 5 visible chars in width 10: should have 5 chars of padding */
+    /* Check borders are present (they wouldn't be correct if counting was wrong) */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x95\x91"));
+}
+#endif /* ANSI_PRINT_WINDOW */
+
+#endif /* ANSI_PRINT_BAR */
+
+/* ------------------------------------------------------------------ */
 /* Config banner & runner                                             */
 /* ------------------------------------------------------------------ */
 
@@ -1096,6 +1337,7 @@ static void print_config(void)
     printf(" UNICODE=%d",         ANSI_PRINT_UNICODE);
     printf(" BANNER=%d",          ANSI_PRINT_BANNER);
     printf(" WINDOW=%d",          ANSI_PRINT_WINDOW);
+    printf(" BAR=%d",             ANSI_PRINT_BAR);
     printf("\n");
 }
 
@@ -1179,6 +1421,31 @@ int main(void)
     RUN_TEST(test_window_color);
     RUN_TEST(test_window_color_disabled);
     RUN_TEST(test_window_markup);
+#endif
+
+#if ANSI_PRINT_BAR
+    /* Bar graphs */
+    RUN_TEST(test_bar_full);
+    RUN_TEST(test_bar_empty);
+    RUN_TEST(test_bar_half);
+    RUN_TEST(test_bar_partial_block);
+    RUN_TEST(test_bar_with_color);
+    RUN_TEST(test_bar_clamp_over);
+    RUN_TEST(test_bar_clamp_under);
+    RUN_TEST(test_bar_zero_range);
+    RUN_TEST(test_bar_zero_width);
+    RUN_TEST(test_bar_negative_range);
+    RUN_TEST(test_bar_float_value);
+    RUN_TEST(test_bar_inline_with_text);
+    RUN_TEST(test_bar_null_color);
+    RUN_TEST(test_bar_blank_track);
+    RUN_TEST(test_bar_percent);
+    RUN_TEST(test_bar_percent_clamp);
+#if ANSI_PRINT_WINDOW
+    RUN_TEST(test_bar_in_window);
+    RUN_TEST(test_bar_in_window_truncate);
+    RUN_TEST(test_window_utf8_counting);
+#endif
 #endif
 
 #if ANSI_PRINT_STYLES
@@ -1271,6 +1538,10 @@ int main(void)
 
 #if !ANSI_PRINT_BRIGHT_COLORS
     RUN_TEST(test_minimal_bright_color_ignored);
+#endif
+
+#if !ANSI_PRINT_BAR
+    RUN_TEST(test_minimal_bar_not_available);
 #endif
 
     return UNITY_END();

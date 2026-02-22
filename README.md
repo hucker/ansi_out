@@ -1,9 +1,9 @@
 # `ansi_print`
 
-![version](https://img.shields.io/badge/version-1.0.0-blue "Library version")
+![version](https://img.shields.io/badge/version-1.0.1-blue "Library version")
 ![license](https://img.shields.io/badge/license-MIT-green "MIT License")
-![test-full](https://img.shields.io/badge/test--full-99%20passed-brightgreen "All features enabled")
-![test-minimal](https://img.shields.io/badge/test--minimal-38%20passed-brightgreen "All optional features disabled")
+![test-full](https://img.shields.io/badge/test--full-118%20passed-brightgreen "All features enabled")
+![test-minimal](https://img.shields.io/badge/test--minimal-42%20passed-brightgreen "All optional features disabled")
 ![C standard](https://img.shields.io/badge/C-C99-orange "Requires C99 compiler")
 
 A lightweight C library for colored terminal output using
@@ -24,6 +24,12 @@ Typical use cases:
 - Colorized log files and diagnostic messages
 - Build system and test runner output
 
+## Terminal Output
+
+Output of `ansiprint --demo`, the bundled CLI tool that showcases the main
+features of the library: named colors, styles, backgrounds, gradients, emoji,
+banners, windows, and bar graphs.
+
 ![ansiprint --demo output](img/demo.png)
 
 ## Features
@@ -35,6 +41,7 @@ Typical use cases:
 - 8 standard + 12 extended + 8 bright named colors
 - Banner boxes for single-call status messages (`ansi_banner()`)
 - Streaming window boxes with titled headers (`ansi_window_start/line/end()`)
+- Inline bar graphs with 1/8-cell resolution (`ansi_bar()`)
 - Platform-independent output via injected function pointers
 - No dynamic memory allocation (caller provides buffer)
 - Compile-time feature toggles to minimize code/data size
@@ -97,7 +104,7 @@ Or fetch it directly from a Git repository:
 include(FetchContent)
 FetchContent_Declare(ansi_print
     GIT_REPOSITORY https://github.com/yourname/ansi_print.git
-    GIT_TAG        v1.0.0
+    GIT_TAG        v1.0.1
 )
 FetchContent_MakeAvailable(ansi_print)
 target_link_libraries(my_app PRIVATE ansi_print)
@@ -177,6 +184,7 @@ Or on the command line: `-DANSI_PRINT_MINIMAL`
 | `ANSI_PRINT_UNICODE`         | 1             | `:U-XXXX:` codepoint escapes                        |
 | `ANSI_PRINT_BANNER`          | 1             | `ansi_banner()` boxed text output                   |
 | `ANSI_PRINT_WINDOW`          | 1             | `ansi_window_start/line/end()` streaming boxed text |
+| `ANSI_PRINT_BAR`             | 1             | `ansi_bar()` inline horizontal bar graphs           |
 
 ### Example app_cfg.h (minimal embedded build)
 
@@ -419,7 +427,7 @@ ansi_banner("yellow", 0, ANSI_ALIGN_RIGHT,
             3.29, 1.81);
 ```
 
-Example output (centered, rendered in the specified color):
+*Centered banner (rendered in the specified color):*
 
 ```text
 ╔══════════════════════════════════════════╗
@@ -464,7 +472,7 @@ ansi_window_line(ANSI_ALIGN_RIGHT, "Right-aligned: %d", 42);
 ansi_window_end();
 ```
 
-Example output (with title):
+*Window with title and separator:*
 
 ```text
 ╔══════════════════════════════════════════╗
@@ -479,6 +487,96 @@ Example output (with title):
 The title line appears only when a non-NULL, non-empty title is passed to
 `ansi_window_start()`. A horizontal separator (`╠═══╣`) is drawn beneath the
 title. Each `ansi_window_line()` call has its own alignment parameter.
+
+## Bar Graph (ANSI_PRINT_BAR)
+
+`ansi_bar()` builds a string of Unicode block characters representing a
+horizontal bar graph into a caller-provided buffer. The string contains Rich
+markup for coloring and can be used as a `%s` argument to `ansi_print()`,
+`ansi_window_line()`, or any printf-style function.
+
+Each character cell has 8 sub-steps of resolution using partial block elements
+(█▉▊▋▌▍▎▏). The `track` parameter selects the character used for unfilled
+cells.
+
+```c
+const char *ansi_bar(char *buf, size_t buf_size,
+                     const char *color, int width, ansi_bar_track_t track,
+                     double value, double min, double max);
+```
+
+- `buf`, `buf_size` -- caller-provided output buffer (128 bytes supports ~30-wide bars)
+- `color` -- named color for the filled portion (NULL for uncolored)
+- `width` -- total bar width in character cells
+- `track` -- character for unfilled cells (see table below)
+- `value` -- current value to display
+- `min`, `max` -- range for scaling (float math, clamped)
+
+### Track Characters
+
+| Value            | Character | Description      |
+| ---------------- | --------- | ---------------- |
+| `ANSI_BAR_BLANK` | (space)   | No visible track |
+| `ANSI_BAR_LIGHT` | ░         | Light shade      |
+| `ANSI_BAR_MED`   | ▒         | Medium shade     |
+| `ANSI_BAR_HEAVY` | ▓         | Dark shade       |
+| `ANSI_BAR_DOT`   | ·         | Middle dot       |
+| `ANSI_BAR_LINE`  | ─         | Horizontal line  |
+
+The buffer is passed directly (not via an init function) so that multiple bars
+can coexist in the same printf argument list -- each call writes to its own
+buffer with no shared state.
+
+```c
+/* Single bar with light shade track */
+char bar[128];
+ansi_print("CPU: %s %d%%\n",
+           ansi_bar(bar, sizeof(bar), "green", 20,
+                    ANSI_BAR_LIGHT, cpu, 0, 100), cpu);
+
+/* Clean look with no visible track */
+ansi_print("CPU: %s %d%%\n",
+           ansi_bar(bar, sizeof(bar), "green", 20,
+                    ANSI_BAR_BLANK, cpu, 0, 100), cpu);
+
+/* Two bars in one printf -- each gets its own buffer */
+char b1[128], b2[128];
+ansi_print("CPU %s  MEM %s\n",
+           ansi_bar(b1, sizeof(b1), "green", 15,
+                    ANSI_BAR_LIGHT, cpu, 0, 100),
+           ansi_bar(b2, sizeof(b2), "cyan",  15,
+                    ANSI_BAR_LIGHT, mem, 0, 100));
+
+/* Inside a window */
+ansi_window_start("cyan", 30, ANSI_ALIGN_LEFT, "Monitors");
+ansi_window_line(ANSI_ALIGN_LEFT, "CPU %s %d%%",
+                 ansi_bar(bar, sizeof(bar), "green", 15,
+                          ANSI_BAR_LIGHT, 73, 0, 100), 73);
+ansi_window_line(ANSI_ALIGN_LEFT, "MEM %s %d%%",
+                 ansi_bar(bar, sizeof(bar), "cyan",  15,
+                          ANSI_BAR_LIGHT, 45, 0, 100), 45);
+ansi_window_end();
+```
+
+*Bar graphs with light-shade track:*
+
+```text
+CPU: ██████████████▌░░░░░ 73%
+MEM: █████████░░░░░░░░░░░ 45%
+```
+
+### Percentage Shorthand
+
+`ansi_bar_percent()` is a convenience wrapper with a fixed 0-100 range that
+appends " XX%" after the bar:
+
+```c
+char bar[128];
+ansi_print("CPU %s\n",
+           ansi_bar_percent(bar, sizeof(bar), "green", 20,
+                            ANSI_BAR_LIGHT, 73));
+// Output: CPU ██████████████▌░░░░░ 73%
+```
 
 ## API Reference
 
@@ -516,6 +614,16 @@ void ansi_window_start(const char *color, int width, ansi_align_t align,
                        const char *title);
 void ansi_window_line(ansi_align_t align, const char *fmt, ...);
 void ansi_window_end(void);
+
+/* Inline bar graph string (ANSI_PRINT_BAR only) */
+const char *ansi_bar(char *buf, size_t buf_size,
+                     const char *color, int width, ansi_bar_track_t track,
+                     double value, double min, double max);
+
+/* Bar graph with " XX%" appended (ANSI_PRINT_BAR only) */
+const char *ansi_bar_percent(char *buf, size_t buf_size,
+                             const char *color, int width,
+                             ansi_bar_track_t track, int percent);
 ```
 
 ## CLI Tool
@@ -596,18 +704,18 @@ Tests print a config banner showing which features are active:
 ```console
 $ make test
 >> build/test_cprint
-Build config: EMOJI=1 EXTENDED_EMOJI=1 EXTENDED_COLORS=1 BRIGHT_COLORS=1 STYLES=1 GRADIENTS=1 UNICODE=1 BANNER=1 WINDOW=1
+Build config: EMOJI=1 EXTENDED_EMOJI=1 EXTENDED_COLORS=1 BRIGHT_COLORS=1 STYLES=1 GRADIENTS=1 UNICODE=1 BANNER=1 WINDOW=1 BAR=1
 test/test_cprint.c:883:test_plain_text_no_tags:PASS
 test/test_cprint.c:884:test_printf_formatting:PASS
 ...
-99 Tests 0 Failures 0 Ignored
+118 Tests 0 Failures 0 Ignored
 
 $ make test-minimal
 >> build/test_cprint_minimal
-Build config: EMOJI=0 EXTENDED_EMOJI=0 EXTENDED_COLORS=0 BRIGHT_COLORS=0 STYLES=0 GRADIENTS=0 UNICODE=0 BANNER=0 WINDOW=0
+Build config: EMOJI=0 EXTENDED_EMOJI=0 EXTENDED_COLORS=0 BRIGHT_COLORS=0 STYLES=0 GRADIENTS=0 UNICODE=0 BANNER=0 WINDOW=0 BAR=0
 test/test_cprint.c:883:test_plain_text_no_tags:PASS
 ...
-38 Tests 0 Failures 0 Ignored
+42 Tests 0 Failures 0 Ignored
 ```
 
 The minimal build runs fewer tests (features compiled out) plus additional

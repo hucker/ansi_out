@@ -34,6 +34,7 @@
  * | ANSI_PRINT_UNICODE          | 1       | :U-XXXX: codepoint escapes           |
  * | ANSI_PRINT_BANNER           | 1       | ansi_banner() boxed text output      |
  * | ANSI_PRINT_WINDOW           | 1       | ansi_window_start/line/end() streams |
+ * | ANSI_PRINT_BAR              | 1       | ansi_bar() inline bar graphs         |
  *
  * @section setup Setup
  * @code
@@ -86,8 +87,8 @@
 /** @{ */
 #define ANSI_PRINT_VERSION_MAJOR  1
 #define ANSI_PRINT_VERSION_MINOR  0
-#define ANSI_PRINT_VERSION_PATCH  0
-#define ANSI_PRINT_VERSION        "1.0.0"
+#define ANSI_PRINT_VERSION_PATCH  1
+#define ANSI_PRINT_VERSION        "1.0.1"
 /** @} */
 
 /* Provide actual #define targets for doxygen's @def parser */
@@ -178,6 +179,14 @@
 #  define ANSI_PRINT_WINDOW           ANSI_PRINT_DEFAULT_
 #endif
 
+/** @def ANSI_PRINT_BAR
+ *  Enable ansi_bar() for inline horizontal bar graph rendering using
+ *  Unicode block elements (1/8 resolution).
+ *  Default: 1 (0 if ANSI_PRINT_MINIMAL). */
+#ifndef ANSI_PRINT_BAR
+#  define ANSI_PRINT_BAR              ANSI_PRINT_DEFAULT_
+#endif
+
 #include <stddef.h>     // size_t
 
 #ifdef __cplusplus
@@ -233,8 +242,9 @@ void ansi_init(ansi_putc_function putc_fn, ansi_flush_function flush_fn,
 /**
  * @brief Enable ANSI color codes on Windows console.
  *
- * On Windows, this enables Virtual Terminal Processing mode which allows
- * ANSI escape sequences to work. On other platforms, this is a no-op.
+ * On Windows, this sets the console output codepage to UTF-8 and enables
+ * Virtual Terminal Processing mode which allows ANSI escape sequences to
+ * work. On other platforms, this is a no-op.
  *
  * @note Should be called once at program startup before any color printing.
  * @note On non-Windows platforms, ANSI codes typically work by default.
@@ -487,7 +497,7 @@ void ansi_puts(const char *s);
 
 #if ANSI_PRINT_GRADIENTS
 /**
- * @brief Print a string in bold with a rainbow color gradient.
+ * @brief Print a string with a rainbow color gradient.
  *
  * Each visible character is printed in a different color from a 21-step
  * rainbow palette (red -> yellow -> green -> cyan -> blue -> magenta),
@@ -496,6 +506,8 @@ void ansi_puts(const char *s);
  *
  * Emits ANSI 256-color codes directly (no tag parsing overhead).
  * Respects global color enable/disable state.
+ * Does not apply bold or any other style -- wrap the call with
+ * ansi_puts("[bold]") / ansi_puts("[/]") if bold is desired.
  *
  * @note The input string is treated as plain text -- [tag] markup and
  *       :emoji: shortcodes are not parsed.  The same limitation applies
@@ -535,10 +547,10 @@ typedef enum {
  * @param color  Color name (e.g. "red", "green", "cyan") from the standard,
  *               extended, or bright color tables. NULL or unknown names
  *               produce an uncolored banner.
- * @param width  Interior width in bytes (not display columns). Pass 0 to
+ * @param width  Interior width in visible characters. Pass 0 to
  *               auto-size to the longest line. Lines longer than width are
  *               truncated; shorter lines are padded with spaces. Multi-byte
- *               UTF-8 characters count as multiple bytes toward the width.
+ *               UTF-8 characters count as one visible character.
  * @param align  Text alignment: ANSI_ALIGN_LEFT, ANSI_ALIGN_CENTER, or
  *               ANSI_ALIGN_RIGHT.
  * @param fmt    Printf-style format string for the banner text.
@@ -610,6 +622,85 @@ void ansi_window_line(ansi_align_t align, const char *fmt, ...);
  * then flushes output.
  */
 void ansi_window_end(void);
+#endif
+
+#if ANSI_PRINT_BAR
+
+/** Track character for the unfilled portion of ansi_bar(). */
+typedef enum {
+    ANSI_BAR_BLANK,   /**< Space -- no visible track         */
+    ANSI_BAR_LIGHT,   /**< ░ U+2591  light shade             */
+    ANSI_BAR_MED,     /**< ▒ U+2592  medium shade            */
+    ANSI_BAR_HEAVY,   /**< ▓ U+2593  dark shade              */
+    ANSI_BAR_DOT,     /**< · U+00B7  middle dot              */
+    ANSI_BAR_LINE,    /**< ─ U+2500  horizontal line         */
+} ansi_bar_track_t;
+
+/**
+ * @brief Generate an inline horizontal bar graph string.
+ *
+ * Builds a string of Rich markup and Unicode block characters (█▉▊▋▌▍▎▏)
+ * into the caller-provided buffer. The returned string can be used as a
+ * %%s argument to ansi_print(), ansi_window_line(), or any printf-style
+ * function.
+ *
+ * The buffer is passed directly (not via an init function) so that multiple
+ * bars can coexist in the same printf argument list -- each call writes to
+ * its own buffer with no shared state.
+ *
+ * The filled portion uses 1/8-character-cell resolution (8 steps per cell).
+ * The @c track parameter selects the character used for unfilled cells.
+ *
+ * A buffer of 128 bytes supports bars up to ~30 characters wide.
+ * The formula is: width * 3 + 20 (for color tag overhead).
+ *
+ * @param buf       Pointer to caller-provided output buffer.
+ * @param buf_size  Size of the buffer in bytes.
+ * @param color     Color name for the filled portion (e.g. "green", "red").
+ *                  NULL or unknown names produce uncolored blocks.
+ * @param width     Total bar width in character cells. Must be >= 1.
+ * @param track     Character for unfilled cells (e.g. ANSI_BAR_LIGHT).
+ * @param value     Current value to display.
+ * @param min       Minimum of the value range.
+ * @param max       Maximum of the value range.
+ * @return Pointer to buf (for direct use in printf %%s).
+ *
+ * @code
+ * char bar[128];
+ * ansi_bar(bar, sizeof(bar), "green", 20, ANSI_BAR_LIGHT, cpu, 0, 100);
+ * ansi_bar(bar, sizeof(bar), "green", 20, ANSI_BAR_BLANK, cpu, 0, 100);
+ * @endcode
+ */
+const char *ansi_bar(char *buf, size_t buf_size,
+                     const char *color, int width, ansi_bar_track_t track,
+                     double value, double min, double max);
+
+/**
+ * @brief Bar graph with " XX%%" appended.
+ *
+ * Convenience wrapper around ansi_bar() with a fixed 0-100 range.
+ * Appends the percentage as an integer (e.g. " 73%") after the bar.
+ * The percent value is clamped to [0, 100].
+ *
+ * @param buf       Pointer to caller-provided output buffer.
+ * @param buf_size  Size of the buffer in bytes.
+ * @param color     Color name for the filled portion (NULL for uncolored).
+ * @param width     Total bar width in character cells.
+ * @param track     Character for unfilled cells (e.g. ANSI_BAR_LIGHT).
+ * @param percent   Fill percentage (0-100, clamped).
+ * @return Pointer to buf.
+ *
+ * @code
+ * char bar[128];
+ * ansi_print("CPU %s\n",
+ *            ansi_bar_percent(bar, sizeof(bar), "green", 20,
+ *                             ANSI_BAR_LIGHT, 73));
+ * // Output: CPU ██████████████▌░░░░░ 73%
+ * @endcode
+ */
+const char *ansi_bar_percent(char *buf, size_t buf_size,
+                             const char *color, int width,
+                             ansi_bar_track_t track, int percent);
 #endif
 
 #ifdef __cplusplus

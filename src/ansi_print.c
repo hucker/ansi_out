@@ -39,6 +39,40 @@
 #define BOX_ML  "\xe2\x95\xa0"  /* ╠ */
 #define BOX_MR  "\xe2\x95\xa3"  /* ╣ */
 
+#if ANSI_PRINT_BAR
+/* Block elements for bar rendering (UTF-8 byte sequences) */
+#define BAR_FULL    "\xe2\x96\x88"  /* █ U+2588  full block    */
+#define BAR_78      "\xe2\x96\x89"  /* ▉ U+2589  7/8 block     */
+#define BAR_68      "\xe2\x96\x8a"  /* ▊ U+258A  6/8 block     */
+#define BAR_58      "\xe2\x96\x8b"  /* ▋ U+258B  5/8 block     */
+#define BAR_48      "\xe2\x96\x8c"  /* ▌ U+258C  4/8 block     */
+#define BAR_38      "\xe2\x96\x8d"  /* ▍ U+258D  3/8 block     */
+#define BAR_28      "\xe2\x96\x8e"  /* ▎ U+258E  2/8 block     */
+#define BAR_18      "\xe2\x96\x8f"  /* ▏ U+258F  1/8 block     */
+static const char * const BAR_PARTIAL[] = {
+    NULL,     /* 0 -- no partial block */
+    BAR_18,   /* 1/8 */
+    BAR_28,   /* 2/8 */
+    BAR_38,   /* 3/8 */
+    BAR_48,   /* 4/8 */
+    BAR_58,   /* 5/8 */
+    BAR_68,   /* 6/8 */
+    BAR_78,   /* 7/8 */
+};
+
+/* Track characters indexed by ansi_bar_track_t.
+ * Each entry: { utf8_string, byte_length } */
+static const struct { const char *s; int len; } BAR_TRACK[] = {
+    { " ",                 1 },  /* ANSI_BAR_BLANK */
+    { "\xe2\x96\x91",     3 },  /* ANSI_BAR_LIGHT  ░ U+2591 */
+    { "\xe2\x96\x92",     3 },  /* ANSI_BAR_MED    ▒ U+2592 */
+    { "\xe2\x96\x93",     3 },  /* ANSI_BAR_HEAVY  ▓ U+2593 */
+    { "\xc2\xb7",         2 },  /* ANSI_BAR_DOT    · U+00B7 */
+    { "\xe2\x94\x80",     3 },  /* ANSI_BAR_LINE   ─ U+2500 */
+};
+
+#endif /* ANSI_PRINT_BAR */
+
 /* ------------------------------------------------------------------------- */
 /* Output plumbing                                                            */
 /* ------------------------------------------------------------------------- */
@@ -47,17 +81,9 @@ static char   *m_buf      = NULL;
 static size_t  m_buf_size = 0;
 
 
-// Default do nothing functions for this module
-static void ansi_noop_putc(int ch) 
-{
-     (void)ch; 
-
-}
-
-static void ansi_noop_flush(void)
- {
-
- }
+/* Default no-op functions */
+static void ansi_noop_putc(int ch)  { (void)ch; }
+static void ansi_noop_flush(void)   { }
 
 static ansi_putc_function  m_putc_function  = ansi_noop_putc;
 static ansi_flush_function m_flush_function = ansi_noop_flush;
@@ -371,6 +397,7 @@ static const EmojiEntry EMOJIS[] = {
 
 #define EMOJI_COUNT (sizeof(EMOJIS) / sizeof(EMOJIS[0]))
 
+/* O(n) linear scan -- fast enough for ~150 entries on typical hardware. */
 static const EmojiEntry *lookup_emoji(const char *s, size_t len)
 {
     for (size_t i = 0; i < EMOJI_COUNT; ++i) {
@@ -457,6 +484,7 @@ static void reapply_state(void)
 /* Lookup helper                                                              */
 /* ------------------------------------------------------------------------- */
 
+/* O(n) linear scan -- fast enough for ~28 entries. */
 static const AttrEntry *lookup_attr(const char *s, size_t len)
 {
     for (size_t i = 0; i < sizeof(ATTRS)/sizeof(ATTRS[0]); ++i) {
@@ -949,8 +977,6 @@ void ansi_rainbow(const char *s)
     char buf[16];
     int ci = 0;
 
-    if (m_color_enabled) output_string(BOLD);
-
     while (*s) {
         if (m_color_enabled && *s != ' ' && *s != '\t' && *s != '\n') {
             int pos = ci * (int)(RAINBOW_LEN - 1) / (total > 1 ? total - 1 : 1);
@@ -968,6 +994,39 @@ void ansi_rainbow(const char *s)
 #endif /* ANSI_PRINT_GRADIENTS */
 
 #if ANSI_PRINT_BANNER
+
+/* Count visible characters in a plain text span (no markup).
+   Skips UTF-8 continuation bytes (0x80-0xBF). */
+static int banner_visible_len(const char *p, int byte_len)
+{
+    int vis = 0;
+    for (int i = 0; i < byte_len; i++) {
+        if (!((unsigned char)p[i] >= 0x80 && (unsigned char)p[i] <= 0xBF))
+            vis++;
+    }
+    return vis;
+}
+
+/* Emit up to max_vis visible characters from plain text, return bytes consumed. */
+static int banner_emit_vis(const char *p, int byte_len, int max_vis)
+{
+    int vis = 0, i = 0;
+    while (i < byte_len && vis < max_vis) {
+        unsigned char c = (unsigned char)p[i];
+        m_putc_function(c);
+        i++;
+        if (!(c >= 0x80 && c <= 0xBF))
+            vis++;
+        /* Drain continuation bytes of the character we just started */
+        while (i < byte_len &&
+               (unsigned char)p[i] >= 0x80 && (unsigned char)p[i] <= 0xBF) {
+            m_putc_function(p[i]);
+            i++;
+        }
+    }
+    return i;
+}
+
 void ansi_banner(const char *color, int width, ansi_align_t align,
                  const char *fmt, ...)
 {
@@ -979,15 +1038,16 @@ void ansi_banner(const char *color, int width, ansi_align_t align,
     vsnprintf(m_buf, m_buf_size, fmt, ap);
     va_end(ap);
 
-    /* Compute effective width: if 0, auto-size to longest line */
+    /* Compute effective width: if 0, auto-size to longest line (visible chars) */
     if (width <= 0) {
         width = 0;
         const char *p = m_buf;
         while (*p) {
-            int len = 0;
-            while (p[len] && p[len] != '\n') len++;
-            if (len > width) width = len;
-            p += len;
+            int byte_len = 0;
+            while (p[byte_len] && p[byte_len] != '\n') byte_len++;
+            int vis = banner_visible_len(p, byte_len);
+            if (vis > width) width = vis;
+            p += byte_len;
             if (*p == '\n') p++;
         }
     }
@@ -1014,13 +1074,14 @@ void ansi_banner(const char *color, int width, ansi_align_t align,
         /* Find end of current line */
         const char *eol = p;
         while (*eol && *eol != '\n') eol++;
-        int len = (int)(eol - p);
+        int byte_len = (int)(eol - p);
+        int vis_len = banner_visible_len(p, byte_len);
 
         output_string(BOX_V);
         m_putc_function(' ');
 
-        /* Output up to width chars (truncate if longer) */
-        int out = len > width ? width : len;
+        /* Output up to width visible chars (truncate if longer) */
+        int out = vis_len > width ? width : vis_len;
         int pad = width - out;
         int pad_left = 0;
         if (align == ANSI_ALIGN_CENTER)      pad_left = pad / 2;
@@ -1028,7 +1089,7 @@ void ansi_banner(const char *color, int width, ansi_align_t align,
         int pad_right = pad - pad_left;
 
         for (int i = 0; i < pad_left; i++)  m_putc_function(' ');
-        for (int i = 0; i < out; i++)       m_putc_function(p[i]);
+        banner_emit_vis(p, byte_len, out);
         for (int i = 0; i < pad_right; i++) m_putc_function(' ');
 
         m_putc_function(' ');
@@ -1104,6 +1165,11 @@ static int window_count_visible(const char *p)
             }
         }
 #endif
+        /* Skip UTF-8 continuation bytes (0x80-0xBF) */
+        if ((unsigned char)*p >= 0x80 && (unsigned char)*p <= 0xBF) {
+            p++;
+            continue;
+        }
         count++;
         p++;
     }
@@ -1181,9 +1247,19 @@ static void window_emit_text(const char *p, int max_vis)
             }
         }
 #endif
+        /* Skip UTF-8 continuation bytes (0x80-0xBF): emit but don't count */
+        if ((unsigned char)*p >= 0x80 && (unsigned char)*p <= 0xBF) {
+            m_putc_function(*p++);
+            continue;
+        }
         if (*p != ' ' && *p != '\t' && *p != '\n') emit_char_color();
         m_putc_function(*p++);
         vis++;
+        /* Drain UTF-8 continuation bytes so multi-byte chars are never
+           split by the vis < max_vis loop condition */
+        while ((unsigned char)*p >= 0x80 && (unsigned char)*p <= 0xBF) {
+            m_putc_function(*p++);
+        }
     }
 
     if (m_color_enabled &&
@@ -1295,3 +1371,120 @@ void ansi_window_end(void)
 }
 
 #endif /* ANSI_PRINT_WINDOW */
+
+/* ------------------------------------------------------------------------- */
+/* Bar graph                                                                  */
+/* ------------------------------------------------------------------------- */
+
+#if ANSI_PRINT_BAR
+
+/*
+ * ansi_bar() -- build a bar graph string into a caller-provided buffer.
+ *
+ * The buffer is passed directly rather than via an init function so that
+ * multiple bars can coexist in the same printf argument list:
+ *
+ *   char b1[128], b2[128];
+ *   ansi_print("CPU %s  MEM %s\n",
+ *              ansi_bar(b1, sizeof(b1), "green", 15, ANSI_BAR_LIGHT, cpu, 0, 100),
+ *              ansi_bar(b2, sizeof(b2), "cyan",  15, ANSI_BAR_LIGHT, mem, 0, 100));
+ *
+ * Each call writes to its own buffer, so there is no shared state and
+ * no ordering dependency between argument evaluations.
+ */
+const char *ansi_bar(char *buf, size_t buf_size,
+                     const char *color, int width, ansi_bar_track_t track,
+                     double value, double min, double max)
+{
+    /* Graceful fallback for NULL or tiny buffers */
+    if (!buf || buf_size < 2) {
+        if (buf && buf_size) buf[0] = '\0';
+        return buf ? buf : "";
+    }
+
+    char *out = buf;
+    char *end = buf + buf_size - 1;
+
+    if (width < 1) { buf[0] = '\0'; return buf; }
+
+    /* Resolve track character -- default to space for unknown values */
+    int tk_idx = (int)track;
+    if (tk_idx < 0 || tk_idx >= (int)(sizeof(BAR_TRACK) / sizeof(BAR_TRACK[0])))
+        tk_idx = 0;
+    const char *tk_str = BAR_TRACK[tk_idx].s;
+    int         tk_len = BAR_TRACK[tk_idx].len;
+
+    /* Compute fill fraction, clamped to [0.0, 1.0] */
+    double fraction;
+    if (max == min) {
+        fraction = 1.0;           /* degenerate range -> full bar */
+    } else {
+        fraction = (value - min) / (max - min);
+    }
+    if (fraction < 0.0) fraction = 0.0;
+    if (fraction > 1.0) fraction = 1.0;
+
+    /* Convert fraction to 1/8-cell units and decompose */
+    int eighths    = (int)(fraction * width * 8 + 0.5);
+    int full_blocks = eighths / 8;
+    int remainder   = eighths % 8;   /* selects partial block 1-7 */
+    int empty       = width - full_blocks - (remainder ? 1 : 0);
+
+    /* Resolve color name to tag string */
+    int has_color = 0;
+    if (color) {
+        const AttrEntry *a = lookup_attr(color, strlen(color));
+        if (a && a->fg_code) {
+            /* Emit [color] open tag */
+            if (out < end) *out++ = '[';
+            const char *c = color;
+            while (*c && out < end) *out++ = *c++;
+            if (out < end) *out++ = ']';
+            has_color = 1;
+        }
+    }
+
+    /* Emit full blocks */
+    for (int i = 0; i < full_blocks && out + 3 <= end; i++) {
+        memcpy(out, BAR_FULL, 3); out += 3;
+    }
+
+    /* Emit partial block (1/8 through 7/8) */
+    if (remainder > 0 && out + 3 <= end) {
+        memcpy(out, BAR_PARTIAL[remainder], 3); out += 3;
+    }
+
+    /* Close color tag before empty track */
+    if (has_color && out + 3 <= end) {
+        memcpy(out, "[/]", 3); out += 3;
+    }
+
+    /* Emit empty track */
+    for (int i = 0; i < empty && out + tk_len <= end; i++) {
+        memcpy(out, tk_str, tk_len); out += tk_len;
+    }
+
+    *out = '\0';
+    return buf;
+}
+
+/*
+ * ansi_bar_percent() -- bar graph with " XX%" appended.
+ * Range is always 0-100. Calls ansi_bar() then appends the clamped percent.
+ */
+const char *ansi_bar_percent(char *buf, size_t buf_size,
+                             const char *color, int width,
+                             ansi_bar_track_t track, int percent)
+{
+    int pct = percent < 0 ? 0 : percent > 100 ? 100 : percent;
+    ansi_bar(buf, buf_size, color, width, track, pct, 0, 100);
+
+    /* Append " XX%" to the bar string */
+    size_t len = strlen(buf);
+    if (len < buf_size - 1) {
+        snprintf(buf + len, buf_size - len, " %d%%", pct);
+    }
+    return buf;
+}
+
+#endif /* ANSI_PRINT_BAR */
