@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 
 project(ansi_print
-    VERSION     1.0.1
+    VERSION     1.1.0
     LANGUAGES   C
     DESCRIPTION "Lightweight C library for colored terminal output with Rich-style markup"
 )

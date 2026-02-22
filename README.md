@@ -1,9 +1,9 @@
 # `ansi_print`
 
-![version](https://img.shields.io/badge/version-1.0.1-blue "Library version")
+![version](https://img.shields.io/badge/version-1.1.0-blue "Library version")
 ![license](https://img.shields.io/badge/license-MIT-green "MIT License")
-![test-full](https://img.shields.io/badge/test--full-118%20passed-brightgreen "All features enabled")
-![test-minimal](https://img.shields.io/badge/test--minimal-42%20passed-brightgreen "All optional features disabled")
+![test-full](https://img.shields.io/badge/test--full-133%20passed-brightgreen "All features enabled")
+![test-minimal](https://img.shields.io/badge/test--minimal-57%20passed-brightgreen "All optional features disabled")
 ![C standard](https://img.shields.io/badge/C-C99-orange "Requires C99 compiler")
 
 A lightweight C library for colored terminal output using
@@ -138,7 +138,7 @@ Or fetch it directly from a Git repository:
 include(FetchContent)
 FetchContent_Declare(ansi_print
     GIT_REPOSITORY https://github.com/yourname/ansi_print.git
-    GIT_TAG        v1.0.1
+    GIT_TAG        v1.1.0
 )
 FetchContent_MakeAvailable(ansi_print)
 target_link_libraries(my_app PRIVATE ansi_print)
