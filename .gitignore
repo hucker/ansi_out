@@ -1,0 +1,6 @@
+build/
+.claude/
+.vscode/
+*.o
+*.exe
+*.gcov

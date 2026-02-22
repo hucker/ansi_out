@@ -1,0 +1,39 @@
+# Doxyfile for ansi_print
+# Generate with: make docs
+# Output:        build/docs/html/index.html
+
+PROJECT_NAME           = "ansi_print"
+PROJECT_BRIEF          = "Rich-style ANSI color printing for C"
+
+OUTPUT_DIRECTORY       = build/docs
+INPUT                  = src/ README.md
+FILE_PATTERNS          = *.h *.c *.md
+RECURSIVE              = NO
+USE_MDFILE_AS_MAINPAGE = README.md
+IMAGE_PATH             = img
+
+# C-specific
+OPTIMIZE_OUTPUT_FOR_C  = YES
+
+# Extract everything including static helpers
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = YES
+
+# Source browser
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+
+# HTML only (no LaTeX/RTF/man)
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+GENERATE_RTF           = NO
+GENERATE_MAN           = NO
+GENERATE_XML           = NO
+
+# Activate doxygen-only #define blocks in headers
+PREDEFINED             = __DOXYGEN__
+
+# Keep it clean
+QUIET                  = YES
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES

@@ -1,0 +1,554 @@
+/**
+ * @file ansi_print.h
+ * @brief ANSI color printing helpers with Rich-inspired inline markup.
+ *
+ * Inspired by the Python Rich library's inline text markup syntax (e.g.,
+ * "[red]error[/]"). Only the inline color/style formatting is implemented;
+ * ansi_print is not terminal-aware and does not support advanced Rich features
+ * such as markdown rendering, tables, layouts, or auto-detection of
+ * terminal capabilities.
+ *
+ * @section features Features
+ * - Named foreground and background colors (8 standard, 12 extended, 8 bright)
+ * - Text styles: bold, dim, italic, underline, invert, strikethrough
+ * - Rainbow and gradient effects (24-bit true color)
+ * - Emoji shortcodes: :fire:, :check:, :rocket:, etc. (~150 total)
+ * - Unicode codepoint escapes: :U-2714:, :U-1F525:, etc.
+ * - Runtime enable/disable of color output (emoji/unicode always emitted)
+ * - Platform-independent output via injected function pointers
+ * - No dynamic memory allocation (caller provides buffer for formatting)
+ * - NOT THREAD SAFE (intended for single-threaded/cooperative use)
+ *
+ * @section compile_flags Compile-Time Feature Flags
+ * All features default to enabled (1). Set to 0 via -D flags or app_cfg.h
+ * to reduce code size for constrained environments.
+ *
+ * | Flag                        | Default | Description                          |
+ * |-----------------------------|---------|--------------------------------------|
+ * | ANSI_PRINT_EMOJI            | 1       | Core emoji (~21 shortcodes)          |
+ * | ANSI_PRINT_EXTENDED_EMOJI   | 1       | Extended emoji (~130 more)           |
+ * | ANSI_PRINT_EXTENDED_COLORS  | 1       | orange, pink, purple, teal, etc.     |
+ * | ANSI_PRINT_BRIGHT_COLORS    | 1       | bright_red, bright_green, etc.       |
+ * | ANSI_PRINT_STYLES           | 1       | bold, dim, italic, underline, etc.   |
+ * | ANSI_PRINT_GRADIENTS        | 1       | rainbow and gradient effects          |
+ * | ANSI_PRINT_UNICODE          | 1       | :U-XXXX: codepoint escapes           |
+ * | ANSI_PRINT_BANNER           | 1       | ansi_banner() boxed text output      |
+ *
+ * @section setup Setup
+ * @code
+ * // Initialize output (required before first ansi_print)
+ * static void my_putc(int ch) { putchar(ch); }
+ * static void my_flush(void)  { fflush(stdout); }
+ * static char buf[512];
+ * ansi_init(my_putc, my_flush, buf, sizeof(buf));
+ *
+ * // On embedded (UART, no flush needed)
+ * static char buf[256];
+ * ansi_init(uart_put_char, NULL, buf, sizeof(buf));
+ * @endcode
+ *
+ * @section usage Usage Examples
+ * @code
+ * // Simple colored output
+ * ansi_print("[red]Error: %s[/]\n", error_msg);
+ * ansi_print("[green]Success![/]\n");
+ *
+ * // Combined styles and colors
+ * ansi_print("[bold yellow on black]System Status: %s[/]\n", status);
+ *
+ * // Emoji shortcodes
+ * ansi_print(":check: [green]All tests passed[/]\n");
+ * ansi_print(":cross: [red]Build failed[/]\n");
+ *
+ * // Unicode codepoint escapes
+ * ansi_print(":U-2714: done\n");       // ✔ done
+ * ansi_print(":U-1F525: hot\n");       // 🔥 hot
+ *
+ * // Toggle color on/off (emoji/unicode still emitted)
+ * ansi_toggle();
+ * ansi_print("[red]Plain text[/] :check:\n");  // "Plain text ✔"
+ * @endcode
+ *
+ * @section colors Supported Colors
+ * Standard: black, red, green, yellow, blue, magenta, cyan, white
+ * Extended (ANSI_PRINT_EXTENDED_COLORS): orange, pink, purple, brown,
+ *          teal, lime, navy, olive, maroon, aqua, silver, gray
+ * Bright (ANSI_PRINT_BRIGHT_COLORS): bright_black, bright_red,
+ *         bright_green, bright_yellow, bright_blue, bright_magenta,
+ *         bright_cyan, bright_white
+ */
+
+#ifndef ANSI_PRINT_H
+#define ANSI_PRINT_H
+
+/** @name Library version */
+/** @{ */
+#define ANSI_PRINT_VERSION_MAJOR  1
+#define ANSI_PRINT_VERSION_MINOR  0
+#define ANSI_PRINT_VERSION_PATCH  0
+#define ANSI_PRINT_VERSION        "1.0.0"
+/** @} */
+
+/* Provide actual #define targets for doxygen's @def parser */
+#ifdef __DOXYGEN__
+/** @def ANSI_PRINT_NO_APP_CFG
+ *  Define to skip the automatic @c app_cfg.h include. Useful when feature
+ *  flags are set entirely via compiler @c -D flags. */
+#define ANSI_PRINT_NO_APP_CFG
+/** @def ANSI_PRINT_MINIMAL
+ *  When defined, all optional features default to disabled (0) instead of
+ *  enabled (1). Individual flags can still be set to 1 to selectively
+ *  re-enable features in a minimal build. */
+#define ANSI_PRINT_MINIMAL
+#endif
+
+#if !defined(ANSI_PRINT_NO_APP_CFG)
+#  if defined(__has_include)
+#    if __has_include("app_cfg.h")
+#      include "app_cfg.h"
+#    endif
+#  endif
+#endif
+
+#ifdef ANSI_PRINT_MINIMAL
+#  define ANSI_PRINT_DEFAULT_  0
+#else
+#  define ANSI_PRINT_DEFAULT_  1
+#endif
+
+/** @def ANSI_PRINT_EMOJI
+ *  Enable core emoji shortcodes (21 emoji). Default: 1 (0 if ANSI_PRINT_MINIMAL). */
+#ifndef ANSI_PRINT_EMOJI
+#  define ANSI_PRINT_EMOJI            ANSI_PRINT_DEFAULT_
+#endif
+
+/** @def ANSI_PRINT_EXTENDED_EMOJI
+ *  Enable extended emoji set (~130 additional shortcodes). Default: 1 (0 if ANSI_PRINT_MINIMAL). */
+#ifndef ANSI_PRINT_EXTENDED_EMOJI
+#  define ANSI_PRINT_EXTENDED_EMOJI   ANSI_PRINT_DEFAULT_
+#endif
+
+/** @def ANSI_PRINT_EXTENDED_COLORS
+ *  Enable 12 extra named colors: orange, pink, purple, brown, teal, lime, navy,
+ *  olive, maroon, aqua, silver, gray. Default: 1 (0 if ANSI_PRINT_MINIMAL). */
+#ifndef ANSI_PRINT_EXTENDED_COLORS
+#  define ANSI_PRINT_EXTENDED_COLORS  ANSI_PRINT_DEFAULT_
+#endif
+
+/** @def ANSI_PRINT_BRIGHT_COLORS
+ *  Enable 8 bright color variants (bright_red, bright_green, etc.).
+ *  Default: 1 (0 if ANSI_PRINT_MINIMAL). */
+#ifndef ANSI_PRINT_BRIGHT_COLORS
+#  define ANSI_PRINT_BRIGHT_COLORS    ANSI_PRINT_DEFAULT_
+#endif
+
+/** @def ANSI_PRINT_STYLES
+ *  Enable text styles: bold, dim, italic, underline, invert, strikethrough.
+ *  Default: 1 (0 if ANSI_PRINT_MINIMAL). */
+#ifndef ANSI_PRINT_STYLES
+#  define ANSI_PRINT_STYLES           ANSI_PRINT_DEFAULT_
+#endif
+
+/** @def ANSI_PRINT_GRADIENTS
+ *  Enable rainbow and gradient effects and the ansi_rainbow() function.
+ *  Requires 24-bit true color support. Default: 1 (0 if ANSI_PRINT_MINIMAL). */
+#ifndef ANSI_PRINT_GRADIENTS
+#  define ANSI_PRINT_GRADIENTS        ANSI_PRINT_DEFAULT_
+#endif
+
+/** @def ANSI_PRINT_UNICODE
+ *  Enable :U-XXXX: codepoint escapes (U+0001 to U+10FFFF).
+ *  Default: 1 (0 if ANSI_PRINT_MINIMAL). */
+#ifndef ANSI_PRINT_UNICODE
+#  define ANSI_PRINT_UNICODE          ANSI_PRINT_DEFAULT_
+#endif
+
+/** @def ANSI_PRINT_BANNER
+ *  Enable ansi_banner() for boxed text output with Unicode double-line borders.
+ *  Default: 1 (0 if ANSI_PRINT_MINIMAL). */
+#ifndef ANSI_PRINT_BANNER
+#  define ANSI_PRINT_BANNER           ANSI_PRINT_DEFAULT_
+#endif
+
+#include <stddef.h>     // size_t
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * @brief Function pointer type for character output.
+ *
+ * Matches the standard putchar() convention: takes an int (character).
+ * On desktop, wrap putchar(); on embedded, wrap uart_put_char() or equivalent.
+ *
+ * @param ch Character to output.
+ */
+typedef void (*ansi_putc_function)(int ch);
+
+/**
+ * @brief Function pointer type for output flush.
+ *
+ * Called after completing a print operation to ensure all characters
+ * are transmitted. On desktop, wrap fflush(stdout); on embedded,
+ * pass NULL if flush is not needed (replaced with internal no-op).
+ */
+typedef void (*ansi_flush_function)(void);
+
+/**
+ * @brief Initialize ansi_print with platform-specific output functions and buffer.
+ *
+ * Must be called before any ansi_print output functions (ansi_print, etc.).
+ * Follows the same dependency injection pattern as feq_init().
+ *
+ * @param putc_fn  Character output function, or NULL to suppress all output.
+ * @param flush_fn Flush function, or NULL for no-op flush.
+ * @param buf      Caller-owned buffer for ansi_print string formatting.
+ * @param buf_size Size of buf in bytes (512 is typical for line-based output).
+ *
+ * @code
+ * // Desktop (stdio)
+ * static void my_putc(int ch) { putchar(ch); }
+ * static void my_flush(void)  { fflush(stdout); }
+ * static char ansi_buf[512];
+ * ansi_init(my_putc, my_flush, ansi_buf, sizeof(ansi_buf));
+ *
+ * // Embedded (UART, no flush needed)
+ * static void uart_putc(int ch) { uart_put_char((char)ch); }
+ * static char ansi_buf[256];
+ * ansi_init(uart_putc, NULL, ansi_buf, sizeof(ansi_buf));
+ * @endcode
+ */
+void ansi_init(ansi_putc_function putc_fn, ansi_flush_function flush_fn,
+               char *buf, size_t buf_size);
+
+/**
+ * @brief Enable ANSI color codes on Windows console.
+ *
+ * On Windows, this enables Virtual Terminal Processing mode which allows
+ * ANSI escape sequences to work. On other platforms, this is a no-op.
+ *
+ * @note Should be called once at program startup before any color printing.
+ * @note On non-Windows platforms, ANSI codes typically work by default.
+ */
+void ansi_enable(void);
+
+/**
+ * @brief Enable or disable color output globally.
+ *
+ * When disabled, all color printing functions output plain text without
+ * ANSI escape codes.
+ *
+ * @param enabled Non-zero to enable color, zero to disable.
+ */
+void ansi_set_enabled(int enabled);
+
+/**
+ * @brief Check if color output is currently enabled.
+ *
+ * @return Non-zero if color is enabled, zero if disabled.
+ */
+int ansi_is_enabled(void);
+
+/**
+ * @brief Toggle color enable/disable state.
+ *
+ * Flips the current color enable state. If enabled, becomes disabled.
+ * If disabled, becomes enabled.
+ */
+void ansi_toggle(void);
+
+/**
+ * @brief Rich-style printf with inline markup tags.
+ *
+ * Printf-style function that supports Python Rich-like markup for colors,
+ * backgrounds, and text styles. Uses the caller-provided buffer from ansi_init().
+ *
+ * **Inspired by Python Rich library** (https://github.com/Textualize/rich)
+ * Adapted for embedded C with no dynamic allocation and sequential tag model.
+ *
+ * @section ansi_print_syntax Tag Syntax
+ *
+ * **Colors** (foreground):
+ * - Standard: black, red, green, yellow, blue, magenta, cyan, white
+ * - Extended: orange, pink, purple, brown, teal, lime, navy, olive,
+ *             maroon, aqua, silver, gray
+ * - Bright: bright_black, bright_red, bright_green, bright_yellow,
+ *           bright_blue, bright_magenta, bright_cyan, bright_white
+ *
+ * **Styles**:
+ * - bold, dim, italic, underline, invert, strikethrough
+ *
+ * **Special effects**:
+ * - [rainbow] - Per-character rainbow stretched across text (21-step palette)
+ * - [gradient color1 color2] - Per-character linear interpolation between
+ *   two named colors using 24-bit true color. Pre-scans text length so the
+ *   gradient spans exactly to [/gradient] or [/].
+ *   Example: [gradient red blue]smooth transition[/gradient]
+ *
+ * **Emoji** (Rich-style :name: shortcodes):
+ * Core (21): check, cross, warning, info, arrow, gear, clock, hourglass,
+ *   thumbs_up, thumbs_down, star, fire, rocket, zap, bug, wrench, bell,
+ *   sparkles, package, link, stop
+ * Extended (ANSI_PRINT_EXTENDED_EMOJI, ~130 more):
+ *   Faces: smile, grin, laugh, wink, heart_eyes, cool, thinking, cry, skull
+ *   Hands: wave, clap, pray, muscle, victory, point_up, point_down
+ *   Symbols: heart, question, exclamation, plus, minus, infinity, recycle
+ *   Arrows: arrow_up, arrow_down, arrow_left, arrow_right, back, forward
+ *   Objects: key, lock, unlock, shield, bomb, hammer, scissors, pencil,
+ *     magnifier, clipboard, calendar, envelope, phone, laptop, folder, file
+ *   Nature: sun, moon, cloud, snow, earth, tree, coffee, beer
+ *   Awards: trophy, medal, crown, gem, money, gift, party, confetti
+ *   Colored boxes: red_box, orange_box, yellow_box, green_box, blue_box,
+ *     purple_box, brown_box, white_box, black_box
+ * - Emoji are Unicode characters, not ANSI codes -- always emitted even
+ *   when color is disabled via ansi_set_enabled(0).
+ * - Unknown :names: pass through as literal text.
+ * - Use :: to produce a literal colon (like [[ produces a literal bracket).
+ *
+ * **Unicode codepoint escapes** (ANSI_PRINT_UNICODE):
+ * - Syntax: :U-XXXX: where XXXX is 1-6 hex digits (case-insensitive)
+ * - Range: U+0001 to U+10FFFF (full Unicode)
+ * - Examples: :U-2714: (✔), :U-1F525: (🔥), :U-41: (A)
+ * - Invalid codepoints pass through as literal text.
+ * - Always emitted regardless of color enable/disable state.
+ *
+ * **Backgrounds** (use "on" keyword):
+ * - Same color names as foreground
+ *
+ * **Close tags**:
+ * - [/] - Reset all formatting (clears all colors and styles)
+ * - [/red] - Close only red foreground color (selective close)
+ * - [/bold] - Close only bold style (selective close)
+ * - [/red on black] - Close both red foreground and black background (selective)
+ *
+ * **Selective close behavior**:
+ * When you close a specific tag (e.g., [/red]), only that formatting is removed.
+ * Other active formatting (e.g., bold) remains active. This matches Python Rich behavior.
+ *
+ * @section ansi_print_limitations CRITICAL Limitation: No Tag Nesting
+ *
+ * **IMPORTANT**: This implementation does NOT support tag nesting or a tag stack.
+ * Unlike some markup systems, you cannot nest tags within tags and expect inner
+ * tags to close before outer tags in the typical nesting sense.
+ *
+ * **What this means**:
+ * - Tags are tracked by ACTIVE STATE, not by a stack
+ * - When you open [cyan], cyan becomes the active foreground color
+ * - When you open [red] while cyan is active, red REPLACES cyan (not nested inside it)
+ * - Closing [/red] removes red from active state, but does NOT restore cyan
+ * - After [/red], there is NO active foreground color (reset to terminal default)
+ *
+ * **Pattern that WORKS** (sequential tags):
+ * @code
+ * ansi_print("[red]Error:[/red] [cyan]Additional info[/cyan]\n");
+ * ansi_print("[bold][green]Status: OK[/green] - [red]Some errors[/red][/bold]\n");
+ * @endcode
+ *
+ * **Pattern that DOES NOT WORK** (apparent nesting):
+ * @code
+ * ansi_print("[cyan]Outer [red]inner[/red] still cyan[/cyan]\n");
+ * // After [/red], cyan is NOT restored - text prints in default color!
+ * @endcode
+ *
+ * **Workaround for "nesting" effect**:
+ * If you need to change colors mid-text and return to the previous color,
+ * close and re-open the outer tag:
+ * @code
+ * ansi_print("[cyan]Before [/cyan][red]different[/red][cyan] after[/cyan]\n");
+ * @endcode
+ *
+ * This limitation keeps the implementation simple and efficient for embedded
+ * systems, with no dynamic allocation and minimal state tracking.
+ *
+ * @section ansi_print_examples Examples
+ * @code
+ * // Simple color
+ * ansi_print("[red]Error: %s[/]\n", error_msg);
+ *
+ * // Style + color
+ * ansi_print("[bold red]Warning: %d[/]\n", count);
+ *
+ * // Foreground + background
+ * ansi_print("[white on red]Critical![/]\n");
+ *
+ * // Everything combined
+ * ansi_print("[bold yellow on black]System Status: %s[/]\n", status);
+ *
+ * // Multiple sections with complete reset
+ * ansi_print("[green]Success:[/] Processed [bold]%d[/] items\n", count);
+ *
+ * // Selective close - close only color, keep bold
+ * ansi_print("[bold][red]Error:[/red] still bold text[/bold]\n");
+ *
+ * // Nested formatting with selective close
+ * ansi_print("[bold][green]Success[/green] and [red]Error[/red] messages[/bold]\n");
+ *
+ * // Close everything with [/]
+ * ansi_print("[bold red on black]Critical[/] back to normal\n");
+ *
+ * // Invert foreground/background colors
+ * ansi_print("[invert]Inverted text[/]\n");
+ * ansi_print("[red][invert]Red bg with default fg[/][/]\n");
+ *
+ * // Strikethrough text
+ * ansi_print("[strikethrough]Deprecated function[/]\n");
+ * ansi_print("[dim strikethrough]Removed feature[/]\n");
+ *
+ * // Rainbow effect (cycles through 21-color palette)
+ * ansi_print("[bold rainbow]Rainbow text[/]\n");
+ *
+ * // Gradient between two named colors (24-bit true color)
+ * ansi_print("[gradient red blue]Smooth transition[/gradient]\n");
+ * ansi_print("[bold][gradient cyan magenta]Styled gradient[/gradient][/bold]\n");
+ *
+ * // Emoji in status messages
+ * ansi_print(":check: [green]All tests passed[/]\n");
+ * ansi_print(":warning: [yellow]Low memory[/]\n");
+ * ansi_print(":cross: [red]Build failed[/]\n");
+ *
+ * // Emoji with color (inherits active style)
+ * ansi_print("[green]:check:[/] Success\n");
+ *
+ * // Colored boxes for status indicators
+ * ansi_print(":green_box: Pass  :red_box: Fail\n");
+ *
+ * // Unicode codepoint escapes
+ * ansi_print(":U-2714: done\n");       // ✔ done
+ * ansi_print(":U-1F525: on fire\n");   // 🔥 on fire
+ *
+ * // Literal colon (escaped)
+ * ansi_print("Time:: 12::30\n");  // outputs: Time: 12:30
+ * @endcode
+ *
+ * @param fmt Printf-style format string with markup tags
+ * @param ... Variable arguments for printf formatting
+ *
+ * @note Maximum output length is limited by the buffer passed to ansi_init()
+ * @note Respects global color enable/disable state
+ * @note Output is automatically flushed via injected flush function
+ * @note Unknown tags are silently ignored
+ * @note No dynamic memory allocation - uses caller-provided static buffer
+ */
+void ansi_print(const char *fmt, ...);
+
+/**
+ * @brief Format a string with Rich-style inline markup but do not emit it.
+ *
+ * Performs printf-style formatting into the internal buffer and returns a
+ * pointer to the result.  The markup tags are left intact (not processed),
+ * making this useful for logging to files or passing markup strings to
+ * other functions.
+ *
+ * @param fmt  Printf-style format string with optional markup tags.
+ * @return Pointer to the internal format buffer, or NULL on error.
+ *
+ * @warning The returned pointer is only valid until the next call to
+ *          ansi_format(), ansi_print(), or ansi_banner().  All three
+ *          share the same internal buffer.
+ */
+const char *ansi_format(const char *fmt, ...);
+
+/**
+ * @brief Output a static string with Rich-style inline markup tags.
+ *
+ * Lightweight alternative to ansi_print() for strings that contain no printf-style
+ * format specifiers. Bypasses vsnprintf entirely, processing markup tags
+ * directly from the input string. This avoids the format buffer copy and
+ * parse overhead, making it faster for fixed status messages, labels, and
+ * headings.
+ *
+ * Supports the same tag syntax as ansi_print(): colors, styles, backgrounds,
+ * selective close tags, and bracket escaping ([[, ]]).
+ *
+ * @param s  Null-terminated string with optional markup tags.
+ *           Must NOT contain printf format specifiers (%d, %s, etc.).
+ *
+ * @note Does not use the format buffer passed to ansi_init()
+ * @note Respects global color enable/disable state
+ * @note Output is automatically flushed via injected flush function
+ *
+ * @code
+ * ansi_puts("[bold green]System Ready[/]\n");
+ * ansi_puts("[red]Error:[/] out of memory\n");
+ * @endcode
+ *
+ * @see ansi_print() for format-string variant with %d, %s, etc.
+ */
+void ansi_puts(const char *s);
+
+#if ANSI_PRINT_GRADIENTS
+/**
+ * @brief Print a string in bold with a rainbow color gradient.
+ *
+ * Each visible character is printed in a different color from a 21-step
+ * rainbow palette (red -> yellow -> green -> cyan -> blue -> magenta),
+ * stretched to span the full string regardless of length. Spaces and
+ * newlines pass through without advancing the color index.
+ *
+ * Emits ANSI 256-color codes directly (no tag parsing overhead).
+ * Respects global color enable/disable state.
+ *
+ * @note The input string is treated as plain text -- [tag] markup and
+ *       :emoji: shortcodes are not parsed.  The same limitation applies
+ *       to text inside [rainbow] and [gradient] spans in ansi_print().
+ *
+ * @param s  Null-terminated string to print.
+ *
+ * @code
+ * ansi_rainbow("Hello, World!");
+ * @endcode
+ */
+void ansi_rainbow(const char *s);
+#endif
+
+#if ANSI_PRINT_BANNER
+/**
+ * @brief Text alignment for ansi_banner().
+ */
+typedef enum {
+    ANSI_ALIGN_LEFT,    /**< Left-align text (default). */
+    ANSI_ALIGN_CENTER,  /**< Center text within the box. */
+    ANSI_ALIGN_RIGHT    /**< Right-align text within the box. */
+} ansi_align_t;
+
+/**
+ * @brief Print text inside a colored Unicode box border.
+ *
+ * Draws a double-line box (╔═╗║╚═╝) around the formatted text, with both
+ * the border and text rendered in the specified foreground color. Useful
+ * for prominent status messages, error banners, and pass/fail indicators.
+ *
+ * The text is printf-formatted first. Embedded newlines create additional
+ * rows inside the box. Markup tags are NOT processed in the text.
+ *
+ * @param color  Color name (e.g. "red", "green", "cyan") from the standard,
+ *               extended, or bright color tables. NULL or unknown names
+ *               produce an uncolored banner.
+ * @param width  Interior width in bytes (not display columns). Pass 0 to
+ *               auto-size to the longest line. Lines longer than width are
+ *               truncated; shorter lines are padded with spaces. Multi-byte
+ *               UTF-8 characters count as multiple bytes toward the width.
+ * @param align  Text alignment: ANSI_ALIGN_LEFT, ANSI_ALIGN_CENTER, or
+ *               ANSI_ALIGN_RIGHT.
+ * @param fmt    Printf-style format string for the banner text.
+ * @param ...    Variable arguments for printf formatting.
+ *
+ * @warning Uses the same internal buffer as ansi_format() and ansi_print().
+ *          A pointer returned by ansi_format() is invalidated by calling
+ *          this function.
+ *
+ * @code
+ * ansi_banner("red", 0, ANSI_ALIGN_LEFT, "Error: file %s not found", filename);
+ * ansi_banner("green", 40, ANSI_ALIGN_CENTER, "PASS: %d tests\nFAIL: %d tests", pass, fail);
+ * @endcode
+ */
+void ansi_banner(const char *color, int width, ansi_align_t align,
+                 const char *fmt, ...);
+#endif
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // ANSI_PRINT_H
