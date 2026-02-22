@@ -105,6 +105,22 @@ static void demo(void)
     ansi_puts("\n");
 #endif
 
+#if ANSI_PRINT_WINDOW
+    /* --- Windows --- */
+    ansi_puts("[bold]Windows[/]\n");
+    ansi_window_start("cyan", 40, ANSI_ALIGN_CENTER, "Sensor Readings");
+    ansi_window_line(ANSI_ALIGN_LEFT, "[green]Temperature: %5.1f C[/]", 23.4);
+    ansi_window_line(ANSI_ALIGN_LEFT, "[yellow]Humidity:    %5.1f %%[/]", 61.2);
+    ansi_window_line(ANSI_ALIGN_LEFT, "[red]Pressure:    %5.1f hPa[/]", 1013.2);
+    ansi_window_end();
+
+    ansi_window_start("yellow", 30, ANSI_ALIGN_LEFT, NULL);
+    ansi_window_line(ANSI_ALIGN_CENTER, "No title window");
+    ansi_window_line(ANSI_ALIGN_CENTER, "Width = %d", 30);
+    ansi_window_end();
+    ansi_puts("\n");
+#endif
+
     /* --- Simulated embedded system output --- */
     ansi_puts("[bold underline]Embedded System Boot Log[/]\n\n");
 

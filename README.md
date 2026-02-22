@@ -1,5 +1,11 @@
 # `ansi_print`
 
+![version](https://img.shields.io/badge/version-1.0.0-blue "Library version")
+![license](https://img.shields.io/badge/license-MIT-green "MIT License")
+![test-full](https://img.shields.io/badge/test--full-99%20passed-brightgreen "All features enabled")
+![test-minimal](https://img.shields.io/badge/test--minimal-38%20passed-brightgreen "All optional features disabled")
+![C standard](https://img.shields.io/badge/C-C99-orange "Requires C99 compiler")
+
 A lightweight C library for colored terminal output using
 [Python Rich](https://github.com/Textualize/rich)-inspired inline markup.
 Built for embedded systems, CLI tools, and log formatting -- anywhere you want
@@ -27,6 +33,8 @@ Typical use cases:
 - Unicode codepoint escapes (`:U-XXXX:` syntax)
 - Rainbow and gradient text effects (24-bit true color)
 - 8 standard + 12 extended + 8 bright named colors
+- Banner boxes for single-call status messages (`ansi_banner()`)
+- Streaming window boxes with titled headers (`ansi_window_start/line/end()`)
 - Platform-independent output via injected function pointers
 - No dynamic memory allocation (caller provides buffer)
 - Compile-time feature toggles to minimize code/data size
@@ -168,6 +176,7 @@ Or on the command line: `-DANSI_PRINT_MINIMAL`
 | `ANSI_PRINT_GRADIENTS`       | 1             | Rainbow and gradient effects, `ansi_rainbow()`      |
 | `ANSI_PRINT_UNICODE`         | 1             | `:U-XXXX:` codepoint escapes                        |
 | `ANSI_PRINT_BANNER`          | 1             | `ansi_banner()` boxed text output                   |
+| `ANSI_PRINT_WINDOW`          | 1             | `ansi_window_start/line/end()` streaming boxed text |
 
 ### Example app_cfg.h (minimal embedded build)
 
@@ -376,9 +385,11 @@ pass through as literal text.
 ## Banner (ANSI_PRINT_BANNER)
 
 `ansi_banner()` draws a Unicode double-line box around printf-formatted text,
-with the border and text rendered in a named color. The `width` argument sets
-the interior width; pass `0` to auto-size to the longest line. The `align`
-argument controls text alignment within the box.
+with the border and text rendered in a named color. All text is formatted into
+the shared buffer in a single call, so the total content is limited by the
+buffer size passed to `ansi_init()`. Because the full text is available up
+front, `width=0` can auto-size to the longest line. The `align` argument
+controls text alignment within the box.
 
 ```c
 typedef enum {
@@ -422,6 +433,53 @@ Lines longer than the specified width are truncated; shorter lines are padded
 according to the alignment setting. Any color name from the standard, extended,
 or bright tables can be used. An unknown or NULL color produces an uncolored box.
 
+## Window (ANSI_PRINT_WINDOW)
+
+A streaming box API for displaying boxed text with an optional titled header.
+Unlike `ansi_banner()`, which formats all text into the buffer at once, windows
+are built one line at a time -- each `ansi_window_line()` call formats and
+emits a single row. This means the number of lines is unlimited (not
+constrained by the buffer size), though each individual line must still fit in
+the buffer. The trade-off is that `width` must be specified up front since the
+full text is not available for auto-sizing.
+
+The border color is set once via `ansi_window_start()` and applied to all
+border characters (top, bottom, separator, and side `║` bars). Line text
+supports full Rich markup — colors, styles, emoji, gradients — the same tag
+syntax as `ansi_print()`. Width and padding are calculated from visible
+character count, so markup tags and ANSI codes do not affect alignment.
+
+```c
+/* Window with cyan borders and per-line markup */
+ansi_window_start("cyan", 40, ANSI_ALIGN_CENTER, "Sensor Readings");
+ansi_window_line(ANSI_ALIGN_LEFT, "[green]Temperature: %5.1f C[/]", 23.4);
+ansi_window_line(ANSI_ALIGN_LEFT, "[yellow]Humidity:    %5.1f %%[/]", 61.2);
+ansi_window_line(ANSI_ALIGN_LEFT, "[red]Pressure:    %5.1f hPa[/]", 1013.2);
+ansi_window_end();
+
+/* Window without a title */
+ansi_window_start("yellow", 30, ANSI_ALIGN_LEFT, NULL);
+ansi_window_line(ANSI_ALIGN_CENTER, "Centered content");
+ansi_window_line(ANSI_ALIGN_RIGHT, "Right-aligned: %d", 42);
+ansi_window_end();
+```
+
+Example output (with title):
+
+```text
+╔══════════════════════════════════════════╗
+║           Sensor Readings                ║
+╠══════════════════════════════════════════╣
+║ Temperature:  23.4 C                     ║
+║ Humidity:     61.2 %                     ║
+║ Pressure:  1013.2 hPa                    ║
+╚══════════════════════════════════════════╝
+```
+
+The title line appears only when a non-NULL, non-empty title is passed to
+`ansi_window_start()`. A horizontal separator (`╠═══╣`) is drawn beneath the
+title. Each `ansi_window_line()` call has its own alignment parameter.
+
 ## API Reference
 
 ```c
@@ -452,6 +510,12 @@ void ansi_rainbow(const char *s);
 /* Colored banner box around text (ANSI_PRINT_BANNER only) */
 void ansi_banner(const char *color, int width, ansi_align_t align,
                  const char *fmt, ...);
+
+/* Streaming boxed text with optional title (ANSI_PRINT_WINDOW only) */
+void ansi_window_start(const char *color, int width, ansi_align_t align,
+                       const char *title);
+void ansi_window_line(ansi_align_t align, const char *fmt, ...);
+void ansi_window_end(void);
 ```
 
 ## CLI Tool
@@ -532,15 +596,15 @@ Tests print a config banner showing which features are active:
 ```console
 $ make test
 >> build/test_cprint
-Build config: EMOJI=1 EXTENDED_EMOJI=1 EXTENDED_COLORS=1 BRIGHT_COLORS=1 STYLES=1 GRADIENTS=1 UNICODE=1 BANNER=1
+Build config: EMOJI=1 EXTENDED_EMOJI=1 EXTENDED_COLORS=1 BRIGHT_COLORS=1 STYLES=1 GRADIENTS=1 UNICODE=1 BANNER=1 WINDOW=1
 test/test_cprint.c:883:test_plain_text_no_tags:PASS
 test/test_cprint.c:884:test_printf_formatting:PASS
 ...
-86 Tests 0 Failures 0 Ignored
+99 Tests 0 Failures 0 Ignored
 
 $ make test-minimal
 >> build/test_cprint_minimal
-Build config: EMOJI=0 EXTENDED_EMOJI=0 EXTENDED_COLORS=0 BRIGHT_COLORS=0 STYLES=0 GRADIENTS=0 UNICODE=0 BANNER=0
+Build config: EMOJI=0 EXTENDED_EMOJI=0 EXTENDED_COLORS=0 BRIGHT_COLORS=0 STYLES=0 GRADIENTS=0 UNICODE=0 BANNER=0 WINDOW=0
 test/test_cprint.c:883:test_plain_text_no_tags:PASS
 ...
 38 Tests 0 Failures 0 Ignored

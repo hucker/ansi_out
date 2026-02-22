@@ -33,6 +33,7 @@
  * | ANSI_PRINT_GRADIENTS        | 1       | rainbow and gradient effects          |
  * | ANSI_PRINT_UNICODE          | 1       | :U-XXXX: codepoint escapes           |
  * | ANSI_PRINT_BANNER           | 1       | ansi_banner() boxed text output      |
+ * | ANSI_PRINT_WINDOW           | 1       | ansi_window_start/line/end() streams |
  *
  * @section setup Setup
  * @code
@@ -168,6 +169,13 @@
  *  Default: 1 (0 if ANSI_PRINT_MINIMAL). */
 #ifndef ANSI_PRINT_BANNER
 #  define ANSI_PRINT_BANNER           ANSI_PRINT_DEFAULT_
+#endif
+
+/** @def ANSI_PRINT_WINDOW
+ *  Enable ansi_window_start/line/end() for streaming boxed text output with
+ *  optional titled header.  Default: 1 (0 if ANSI_PRINT_MINIMAL). */
+#ifndef ANSI_PRINT_WINDOW
+#  define ANSI_PRINT_WINDOW           ANSI_PRINT_DEFAULT_
 #endif
 
 #include <stddef.h>     // size_t
@@ -502,16 +510,18 @@ void ansi_puts(const char *s);
 void ansi_rainbow(const char *s);
 #endif
 
-#if ANSI_PRINT_BANNER
+#if ANSI_PRINT_BANNER || ANSI_PRINT_WINDOW
 /**
- * @brief Text alignment for ansi_banner().
+ * @brief Text alignment for ansi_banner() and ansi_window functions.
  */
 typedef enum {
     ANSI_ALIGN_LEFT,    /**< Left-align text (default). */
     ANSI_ALIGN_CENTER,  /**< Center text within the box. */
     ANSI_ALIGN_RIGHT    /**< Right-align text within the box. */
 } ansi_align_t;
+#endif
 
+#if ANSI_PRINT_BANNER
 /**
  * @brief Print text inside a colored Unicode box border.
  *
@@ -545,6 +555,61 @@ typedef enum {
  */
 void ansi_banner(const char *color, int width, ansi_align_t align,
                  const char *fmt, ...);
+#endif
+
+#if ANSI_PRINT_WINDOW
+/**
+ * @brief Begin a boxed window with an optional title.
+ *
+ * Emits the top border and, if a non-NULL non-empty title is provided,
+ * a title line followed by a horizontal separator. Subsequent calls to
+ * ansi_window_line() add content rows. Call ansi_window_end() to close.
+ *
+ * @param color  Color name for ALL borders (e.g. "cyan", "green").
+ *               Applied to top/bottom borders, separator, and side ║ chars.
+ *               NULL or unknown names produce an uncolored border.
+ *               This color is also used by ansi_window_end().
+ * @param width  Interior width in visible characters. Must be >= 1.
+ * @param align  Alignment of the title text within the box.
+ * @param title  Title string (plain text, no markup), or NULL / "" to omit.
+ *
+ * @warning Uses the same internal buffer as ansi_format() and ansi_print().
+ *
+ * @code
+ * ansi_window_start("cyan", 40, ANSI_ALIGN_CENTER, "Status Report");
+ * ansi_window_line(ANSI_ALIGN_LEFT, "[green]Uptime: %d sec[/]", uptime);
+ * ansi_window_line(ANSI_ALIGN_LEFT, "[red]Errors: %d[/]", err_count);
+ * ansi_window_end();
+ * @endcode
+ */
+void ansi_window_start(const char *color, int width, ansi_align_t align,
+                       const char *title);
+
+/**
+ * @brief Emit one content line inside a window.
+ *
+ * Must be called between ansi_window_start() and ansi_window_end().
+ * The text is printf-formatted into the shared buffer, then processed
+ * through the Rich markup parser — all tag syntax supported by
+ * ansi_print() works here (colors, styles, emoji, gradients, etc.).
+ *
+ * The side borders (║) are drawn in the border color set by
+ * ansi_window_start(). Visible character count (excluding markup tags
+ * and ANSI codes) is used for width/padding/truncation calculations.
+ *
+ * @param align  Alignment of this line within the box.
+ * @param fmt    Printf-style format string with optional Rich markup tags.
+ * @param ...    Variable arguments for printf formatting.
+ */
+void ansi_window_line(ansi_align_t align, const char *fmt, ...);
+
+/**
+ * @brief Close a window by emitting the bottom border.
+ *
+ * Emits the bottom border in the color set by ansi_window_start(),
+ * then flushes output.
+ */
+void ansi_window_end(void);
 #endif
 
 #ifdef __cplusplus

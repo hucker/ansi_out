@@ -926,6 +926,161 @@ void test_banner_align_right(void)
 #endif /* ANSI_PRINT_BANNER */
 
 /* ------------------------------------------------------------------ */
+/* Window tests                                                       */
+/* ------------------------------------------------------------------ */
+
+#if ANSI_PRINT_WINDOW
+
+void test_window_basic(void)
+{
+    ansi_set_enabled(0);
+    ansi_window_start(NULL, 10, ANSI_ALIGN_LEFT, NULL);
+    ansi_window_line(ANSI_ALIGN_LEFT, "hello");
+    ansi_window_end();
+    /* Top border: ╔ */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x95\x94"));
+    /* Bottom border: ╚ */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x95\x9a"));
+    /* Content */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "hello"));
+    /* No separator (no title) -- ╠ should not appear */
+    TEST_ASSERT_NULL(strstr(capture_buf, "\xe2\x95\xa0"));
+}
+
+void test_window_with_title(void)
+{
+    ansi_set_enabled(0);
+    ansi_window_start(NULL, 20, ANSI_ALIGN_LEFT, "My Title");
+    ansi_window_line(ANSI_ALIGN_LEFT, "content");
+    ansi_window_end();
+    /* Title text */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "My Title"));
+    /* Separator: ╠ and ╣ */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x95\xa0"));
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x95\xa3"));
+    /* Content */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "content"));
+}
+
+void test_window_title_center(void)
+{
+    ansi_set_enabled(0);
+    ansi_window_start(NULL, 10, ANSI_ALIGN_CENTER, "hi");
+    ansi_window_end();
+    /* "hi" centered in width 10: 4 spaces left, 4 right */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "    hi    "));
+}
+
+void test_window_title_right(void)
+{
+    ansi_set_enabled(0);
+    ansi_window_start(NULL, 10, ANSI_ALIGN_RIGHT, "hi");
+    ansi_window_end();
+    /* "hi" right-aligned in width 10: 8 spaces left */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "        hi"));
+}
+
+void test_window_line_center(void)
+{
+    ansi_set_enabled(0);
+    ansi_window_start(NULL, 10, ANSI_ALIGN_LEFT, NULL);
+    ansi_window_line(ANSI_ALIGN_CENTER, "ab");
+    ansi_window_end();
+    /* "ab" centered in width 10: 4 left, 4 right */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "    ab    "));
+}
+
+void test_window_line_right(void)
+{
+    ansi_set_enabled(0);
+    ansi_window_start(NULL, 10, ANSI_ALIGN_LEFT, NULL);
+    ansi_window_line(ANSI_ALIGN_RIGHT, "ab");
+    ansi_window_end();
+    /* "ab" right-aligned in width 10: 8 left */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "        ab"));
+}
+
+void test_window_printf(void)
+{
+    ansi_set_enabled(0);
+    ansi_window_start(NULL, 20, ANSI_ALIGN_LEFT, NULL);
+    ansi_window_line(ANSI_ALIGN_LEFT, "val=%d", 42);
+    ansi_window_end();
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "val=42"));
+}
+
+void test_window_truncate(void)
+{
+    ansi_set_enabled(0);
+    ansi_window_start(NULL, 3, ANSI_ALIGN_LEFT, NULL);
+    ansi_window_line(ANSI_ALIGN_LEFT, "abcdef");
+    ansi_window_end();
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "abc"));
+    TEST_ASSERT_NULL(strstr(capture_buf, "abcd"));
+}
+
+void test_window_null_title(void)
+{
+    ansi_set_enabled(0);
+    ansi_window_start(NULL, 10, ANSI_ALIGN_LEFT, NULL);
+    ansi_window_line(ANSI_ALIGN_LEFT, "data");
+    ansi_window_end();
+    /* No separator */
+    TEST_ASSERT_NULL(strstr(capture_buf, "\xe2\x95\xa0"));
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "data"));
+}
+
+void test_window_empty_title(void)
+{
+    ansi_set_enabled(0);
+    ansi_window_start(NULL, 10, ANSI_ALIGN_LEFT, "");
+    ansi_window_line(ANSI_ALIGN_LEFT, "data");
+    ansi_window_end();
+    /* No separator */
+    TEST_ASSERT_NULL(strstr(capture_buf, "\xe2\x95\xa0"));
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "data"));
+}
+
+void test_window_color(void)
+{
+    ansi_window_start("red", 10, ANSI_ALIGN_LEFT, "T");
+    ansi_window_line(ANSI_ALIGN_LEFT, "[green]data[/]");
+    ansi_window_end();
+    /* Border should have red fg */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[31m"));
+    /* Text should have green fg from Rich markup */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[32m"));
+    /* Resets */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[0m"));
+}
+
+void test_window_color_disabled(void)
+{
+    ansi_set_enabled(0);
+    ansi_window_start("red", 10, ANSI_ALIGN_LEFT, "T");
+    ansi_window_line(ANSI_ALIGN_LEFT, "[green]data[/]");
+    ansi_window_end();
+    /* No ANSI codes when disabled */
+    TEST_ASSERT_NULL(strstr(capture_buf, "\x1b[31m"));
+    TEST_ASSERT_NULL(strstr(capture_buf, "\x1b[32m"));
+    /* Box still draws */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x95\x94"));
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "data"));
+}
+
+void test_window_markup(void)
+{
+    ansi_set_enabled(0);
+    ansi_window_start(NULL, 20, ANSI_ALIGN_LEFT, NULL);
+    ansi_window_line(ANSI_ALIGN_LEFT, "[bold]hello[/] world");
+    ansi_window_end();
+    /* Tags stripped in disabled mode, visible text preserved */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "hello world"));
+}
+
+#endif /* ANSI_PRINT_WINDOW */
+
+/* ------------------------------------------------------------------ */
 /* Config banner & runner                                             */
 /* ------------------------------------------------------------------ */
 
@@ -940,6 +1095,7 @@ static void print_config(void)
     printf(" GRADIENTS=%d",       ANSI_PRINT_GRADIENTS);
     printf(" UNICODE=%d",         ANSI_PRINT_UNICODE);
     printf(" BANNER=%d",          ANSI_PRINT_BANNER);
+    printf(" WINDOW=%d",          ANSI_PRINT_WINDOW);
     printf("\n");
 }
 
@@ -1006,6 +1162,23 @@ int main(void)
     RUN_TEST(test_banner_auto_width);
     RUN_TEST(test_banner_align_center);
     RUN_TEST(test_banner_align_right);
+#endif
+
+#if ANSI_PRINT_WINDOW
+    /* Window */
+    RUN_TEST(test_window_basic);
+    RUN_TEST(test_window_with_title);
+    RUN_TEST(test_window_title_center);
+    RUN_TEST(test_window_title_right);
+    RUN_TEST(test_window_line_center);
+    RUN_TEST(test_window_line_right);
+    RUN_TEST(test_window_printf);
+    RUN_TEST(test_window_truncate);
+    RUN_TEST(test_window_null_title);
+    RUN_TEST(test_window_empty_title);
+    RUN_TEST(test_window_color);
+    RUN_TEST(test_window_color_disabled);
+    RUN_TEST(test_window_markup);
 #endif
 
 #if ANSI_PRINT_STYLES

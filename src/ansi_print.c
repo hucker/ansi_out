@@ -29,13 +29,15 @@
 #define INVERT "\x1b[7m"
 #define STRIKETHROUGH "\x1b[9m"
 
-/* Box-drawing characters (UTF-8 byte sequences) for ansi_banner() */
+/* Box-drawing characters (UTF-8 byte sequences) for ansi_banner/window */
 #define BOX_TL  "\xe2\x95\x94"  /* ╔ */
 #define BOX_TR  "\xe2\x95\x97"  /* ╗ */
 #define BOX_BL  "\xe2\x95\x9a"  /* ╚ */
 #define BOX_BR  "\xe2\x95\x9d"  /* ╝ */
 #define BOX_H   "\xe2\x95\x90"  /* ═ */
 #define BOX_V   "\xe2\x95\x91"  /* ║ */
+#define BOX_ML  "\xe2\x95\xa0"  /* ╠ */
+#define BOX_MR  "\xe2\x95\xa3"  /* ╣ */
 
 /* ------------------------------------------------------------------------- */
 /* Output plumbing                                                            */
@@ -1047,3 +1049,249 @@ void ansi_banner(const char *color, int width, ansi_align_t align,
     m_flush_function();
 }
 #endif /* ANSI_PRINT_BANNER */
+
+/* ------------------------------------------------------------------------- */
+/* Window (streaming boxed text)                                             */
+/* ------------------------------------------------------------------------- */
+
+#if ANSI_PRINT_WINDOW
+
+static int         m_window_width = 0;
+static const char *m_window_fg    = NULL;  /* border color from start() */
+
+/* Resolve a color name to its ANSI foreground escape code (or NULL) */
+static const char *window_resolve_color(const char *color)
+{
+    if (!color) return NULL;
+    const AttrEntry *a = lookup_attr(color, strlen(color));
+    return a ? a->fg_code : NULL;
+}
+
+/* Count visible characters in text with Rich markup.
+   Tags ([...]) are zero-width; [[ ]] :: each count as 1;
+   :emoji: and :U-XXXX: each count as 1. */
+static int window_count_visible(const char *p)
+{
+    int count = 0;
+    while (*p) {
+        if (p[0] == '[' && p[1] == '[') { count++; p += 2; continue; }
+        if (p[0] == ']' && p[1] == ']') { count++; p += 2; continue; }
+#if ANSI_PRINT_EMOJI || ANSI_PRINT_UNICODE
+        if (p[0] == ':' && p[1] == ':') { count++; p += 2; continue; }
+#endif
+        if (*p == '[') {
+            const char *e = strchr(p + 1, ']');
+            if (e) { p = e + 1; continue; }
+        }
+#if ANSI_PRINT_EMOJI || ANSI_PRINT_UNICODE
+        if (*p == ':') {
+            const char *end = strchr(p + 1, ':');
+            if (end && end > p + 1) {
+                size_t name_len = (size_t)(end - (p + 1));
+#if ANSI_PRINT_EMOJI
+                if (lookup_emoji(p + 1, name_len)) {
+                    count++; p = end + 1; continue;
+                }
+#endif
+#if ANSI_PRINT_UNICODE
+                {
+                    uint32_t cp;
+                    if (try_parse_unicode(p + 1, name_len, &cp)) {
+                        count++; p = end + 1; continue;
+                    }
+                }
+#endif
+            }
+        }
+#endif
+        count++;
+        p++;
+    }
+    return count;
+}
+
+/* Emit text through the Rich markup parser, stopping after max_vis visible
+   characters.  Resets tag state before and after.  Does NOT call flush. */
+static void window_emit_text(const char *p, int max_vis)
+{
+    int vis = 0;
+    m_tag_state.fg_code = NULL;
+    m_tag_state.bg_code = NULL;
+    m_tag_state.styles  = 0;
+#if ANSI_PRINT_GRADIENTS
+    m_rainbow_idx  = 0;
+    m_rainbow_len  = 0;
+    m_gradient.len = 0;
+    m_gradient.idx = 0;
+#endif
+
+    while (*p && vis < max_vis) {
+        if (p[0] == '[' && p[1] == '[') {
+            m_putc_function('['); vis++; p += 2; continue;
+        }
+        if (p[0] == ']' && p[1] == ']') {
+            m_putc_function(']'); vis++; p += 2; continue;
+        }
+#if ANSI_PRINT_EMOJI || ANSI_PRINT_UNICODE
+        if (p[0] == ':' && p[1] == ':') {
+            m_putc_function(':'); vis++; p += 2; continue;
+        }
+#endif
+        if (*p == '[') {
+            const char *e = strchr(p + 1, ']');
+            if (e) {
+                emit_tag(p + 1, (size_t)(e - (p + 1)));
+                p = e + 1;
+#if ANSI_PRINT_GRADIENTS
+                if ((m_tag_state.styles & STYLE_GRADIENT) && m_gradient.len == 0)
+                    m_gradient.len = count_effect_chars(p, "gradient", 8);
+                if ((m_tag_state.styles & STYLE_RAINBOW) && m_rainbow_len == 0)
+                    m_rainbow_len = count_effect_chars(p, "rainbow", 7);
+#endif
+                continue;
+            }
+        }
+#if ANSI_PRINT_EMOJI || ANSI_PRINT_UNICODE
+        if (*p == ':') {
+            const char *end = strchr(p + 1, ':');
+            if (end && end > p + 1) {
+                size_t name_len = (size_t)(end - (p + 1));
+#if ANSI_PRINT_EMOJI
+                const EmojiEntry *em = lookup_emoji(p + 1, name_len);
+                if (em) {
+                    emit_char_color();
+                    output_string(em->utf8);
+                    vis++;
+                    p = end + 1;
+                    continue;
+                }
+#endif
+#if ANSI_PRINT_UNICODE
+                {
+                    uint32_t cp_val;
+                    if (try_parse_unicode(p + 1, name_len, &cp_val)) {
+                        emit_char_color();
+                        emit_unicode_codepoint(cp_val);
+                        vis++;
+                        p = end + 1;
+                        continue;
+                    }
+                }
+#endif
+            }
+        }
+#endif
+        if (*p != ' ' && *p != '\t' && *p != '\n') emit_char_color();
+        m_putc_function(*p++);
+        vis++;
+    }
+
+    if (m_color_enabled &&
+        (m_tag_state.fg_code || m_tag_state.bg_code || m_tag_state.styles))
+        output_string(RESET);
+}
+
+/* Emit one padded plain-text line between ║ borders (used for title) */
+static void window_emit_line(const char *text, int len, ansi_align_t align)
+{
+    int w = m_window_width;
+    int out = len > w ? w : len;
+    int pad = w - out;
+    int pad_left = 0;
+    if (align == ANSI_ALIGN_CENTER)      pad_left = pad / 2;
+    else if (align == ANSI_ALIGN_RIGHT)  pad_left = pad;
+    int pad_right = pad - pad_left;
+
+    if (m_window_fg && m_color_enabled) output_string(m_window_fg);
+    output_string(BOX_V);
+    m_putc_function(' ');
+    for (int i = 0; i < pad_left; i++)  m_putc_function(' ');
+    for (int i = 0; i < out; i++)       m_putc_function(text[i]);
+    for (int i = 0; i < pad_right; i++) m_putc_function(' ');
+    m_putc_function(' ');
+    output_string(BOX_V);
+    if (m_window_fg && m_color_enabled) output_string(RESET);
+    m_putc_function('\n');
+}
+
+void ansi_window_start(const char *color, int width, ansi_align_t align,
+                       const char *title)
+{
+    m_window_width = width < 1 ? 1 : width;
+    m_window_fg = window_resolve_color(color);
+
+    /* Top border */
+    if (m_window_fg && m_color_enabled) output_string(m_window_fg);
+    output_string(BOX_TL);
+    for (int i = 0; i < m_window_width + 2; i++) output_string(BOX_H);
+    output_string(BOX_TR);
+    if (m_window_fg && m_color_enabled) output_string(RESET);
+    m_putc_function('\n');
+
+    /* Title + separator (if title is non-NULL and non-empty) */
+    if (title && *title) {
+        window_emit_line(title, (int)strlen(title), align);
+
+        /* Separator */
+        if (m_window_fg && m_color_enabled) output_string(m_window_fg);
+        output_string(BOX_ML);
+        for (int i = 0; i < m_window_width + 2; i++) output_string(BOX_H);
+        output_string(BOX_MR);
+        if (m_window_fg && m_color_enabled) output_string(RESET);
+        m_putc_function('\n');
+    }
+}
+
+void ansi_window_line(ansi_align_t align, const char *fmt, ...)
+{
+    if (!fmt || !m_buf || !m_buf_size) return;
+
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(m_buf, m_buf_size, fmt, ap);
+    va_end(ap);
+
+    int vis = window_count_visible(m_buf);
+    int w   = m_window_width;
+    int out = vis > w ? w : vis;
+    int pad = w - out;
+    int pad_left = 0;
+    if (align == ANSI_ALIGN_CENTER)      pad_left = pad / 2;
+    else if (align == ANSI_ALIGN_RIGHT)  pad_left = pad;
+    int pad_right = pad - pad_left;
+
+    /* Left border in border color */
+    if (m_window_fg && m_color_enabled) output_string(m_window_fg);
+    output_string(BOX_V);
+    m_putc_function(' ');
+    if (m_window_fg && m_color_enabled) output_string(RESET);
+
+    /* Left padding */
+    for (int i = 0; i < pad_left; i++) m_putc_function(' ');
+
+    /* Text with Rich markup processing (truncated to window width) */
+    window_emit_text(m_buf, out);
+
+    /* Right padding */
+    for (int i = 0; i < pad_right; i++) m_putc_function(' ');
+
+    /* Right border in border color */
+    if (m_window_fg && m_color_enabled) output_string(m_window_fg);
+    m_putc_function(' ');
+    output_string(BOX_V);
+    if (m_window_fg && m_color_enabled) output_string(RESET);
+    m_putc_function('\n');
+}
+
+void ansi_window_end(void)
+{
+    if (m_window_fg && m_color_enabled) output_string(m_window_fg);
+    output_string(BOX_BL);
+    for (int i = 0; i < m_window_width + 2; i++) output_string(BOX_H);
+    output_string(BOX_BR);
+    if (m_window_fg && m_color_enabled) output_string(RESET);
+    m_putc_function('\n');
+    m_flush_function();
+}
+
+#endif /* ANSI_PRINT_WINDOW */
