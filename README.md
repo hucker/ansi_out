@@ -2,7 +2,7 @@
 
 ![version](https://img.shields.io/badge/version-1.1.0-blue "Library version")
 ![license](https://img.shields.io/badge/license-MIT-green "MIT License")
-![test-full](https://img.shields.io/badge/test--full-133%20passed-brightgreen "All features enabled")
+![test-full](https://img.shields.io/badge/test--full-140%20passed-brightgreen "All features enabled")
 ![test-minimal](https://img.shields.io/badge/test--minimal-57%20passed-brightgreen "All optional features disabled")
 ![C standard](https://img.shields.io/badge/C-C99-orange "Requires C99 compiler")
 
@@ -761,14 +761,14 @@ Build config: EMOJI=1 EXTENDED_EMOJI=1 EXTENDED_COLORS=1 BRIGHT_COLORS=1 STYLES=
 test/test_cprint.c:883:test_plain_text_no_tags:PASS
 test/test_cprint.c:884:test_printf_formatting:PASS
 ...
-118 Tests 0 Failures 0 Ignored
+140 Tests 0 Failures 0 Ignored
 
 $ make test-minimal
 >> build/test_cprint_minimal
 Build config: EMOJI=0 EXTENDED_EMOJI=0 EXTENDED_COLORS=0 BRIGHT_COLORS=0 STYLES=0 GRADIENTS=0 UNICODE=0 BANNER=0 WINDOW=0 BAR=0
 test/test_cprint.c:883:test_plain_text_no_tags:PASS
 ...
-42 Tests 0 Failures 0 Ignored
+57 Tests 0 Failures 0 Ignored
 ```
 
 The minimal build runs fewer tests (features compiled out) plus additional
