@@ -86,9 +86,9 @@
 /** @name Library version */
 /** @{ */
 #define ANSI_PRINT_VERSION_MAJOR  1
-#define ANSI_PRINT_VERSION_MINOR  1
-#define ANSI_PRINT_VERSION_PATCH  1
-#define ANSI_PRINT_VERSION        "1.1.1"
+#define ANSI_PRINT_VERSION_MINOR  2
+#define ANSI_PRINT_VERSION_PATCH  0
+#define ANSI_PRINT_VERSION        "1.2.0"
 /** @} */
 
 /* Provide actual #define targets for doxygen's @def parser */
