@@ -1341,6 +1341,77 @@ void test_bar_percent_clamp(void)
     TEST_ASSERT_NOT_NULL(strstr(bar, " 0%"));
 }
 
+void test_bar_track_med(void)
+{
+    char bar[128];
+    ansi_bar(bar, sizeof(bar), NULL, 3, ANSI_BAR_MED, 0, 0, 100);
+    /* 3 medium shade ▒ (U+2592, 3 bytes each) */
+    TEST_ASSERT_EQUAL(9, (int)strlen(bar));
+    for (int i = 0; i < 3; i++)
+        TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x92", bar + i*3, 3);
+}
+
+void test_bar_track_heavy(void)
+{
+    char bar[128];
+    ansi_bar(bar, sizeof(bar), NULL, 3, ANSI_BAR_HEAVY, 0, 0, 100);
+    /* 3 dark shade ▓ (U+2593, 3 bytes each) */
+    TEST_ASSERT_EQUAL(9, (int)strlen(bar));
+    for (int i = 0; i < 3; i++)
+        TEST_ASSERT_EQUAL_MEMORY("\xe2\x96\x93", bar + i*3, 3);
+}
+
+void test_bar_track_dot(void)
+{
+    char bar[128];
+    ansi_bar(bar, sizeof(bar), NULL, 3, ANSI_BAR_DOT, 0, 0, 100);
+    /* 3 middle dot · (U+00B7, 2 bytes each) */
+    TEST_ASSERT_EQUAL(6, (int)strlen(bar));
+    for (int i = 0; i < 3; i++)
+        TEST_ASSERT_EQUAL_MEMORY("\xc2\xb7", bar + i*2, 2);
+}
+
+void test_bar_track_line(void)
+{
+    char bar[128];
+    ansi_bar(bar, sizeof(bar), NULL, 3, ANSI_BAR_LINE, 0, 0, 100);
+    /* 3 horizontal line ─ (U+2500, 3 bytes each) */
+    TEST_ASSERT_EQUAL(9, (int)strlen(bar));
+    for (int i = 0; i < 3; i++)
+        TEST_ASSERT_EQUAL_MEMORY("\xe2\x94\x80", bar + i*3, 3);
+}
+
+void test_bar_null_buf(void)
+{
+    /* NULL buffer should return "" without crashing */
+    const char *r = ansi_bar(NULL, 0, NULL, 5, ANSI_BAR_LIGHT, 50, 0, 100);
+    TEST_ASSERT_EQUAL_STRING("", r);
+}
+
+void test_bar_tiny_buf(void)
+{
+    /* buf_size=1: can only hold '\0' */
+    char bar[1];
+    ansi_bar(bar, sizeof(bar), NULL, 5, ANSI_BAR_LIGHT, 50, 0, 100);
+    TEST_ASSERT_EQUAL_STRING("", bar);
+}
+
+void test_bar_color_tight_buf(void)
+{
+    /* Buffer too small for [red]...[/] — should omit color tags entirely
+       rather than emitting an incomplete tag like "[re" */
+    char bar[16];  /* only room for a few blocks, not [red]...[/] overhead */
+    ansi_bar(bar, sizeof(bar), "red", 3, ANSI_BAR_LIGHT, 100, 0, 100);
+    /* Should not contain an incomplete open bracket without close */
+    if (strstr(bar, "[red]")) {
+        /* If color tag fits, close tag must also be present */
+        TEST_ASSERT_NOT_NULL(strstr(bar, "[/]"));
+    } else {
+        /* Color tag omitted entirely — no stray brackets */
+        TEST_ASSERT_NULL(strchr(bar, '['));
+    }
+}
+
 #if ANSI_PRINT_WINDOW
 void test_bar_in_window(void)
 {
@@ -1662,6 +1733,13 @@ int main(void)
     RUN_TEST(test_bar_blank_track);
     RUN_TEST(test_bar_percent);
     RUN_TEST(test_bar_percent_clamp);
+    RUN_TEST(test_bar_track_med);
+    RUN_TEST(test_bar_track_heavy);
+    RUN_TEST(test_bar_track_dot);
+    RUN_TEST(test_bar_track_line);
+    RUN_TEST(test_bar_null_buf);
+    RUN_TEST(test_bar_tiny_buf);
+    RUN_TEST(test_bar_color_tight_buf);
 #if ANSI_PRINT_WINDOW
     RUN_TEST(test_bar_in_window);
     RUN_TEST(test_bar_in_window_truncate);

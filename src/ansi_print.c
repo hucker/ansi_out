@@ -1475,9 +1475,10 @@ const char *ansi_bar(char *buf, size_t buf_size,
                      double value, double min, double max)
 {
     /* Graceful fallback for NULL or tiny buffers */
-    if (!buf || buf_size < 2) {
-        if (buf && buf_size) buf[0] = '\0';
-        return buf ? buf : "";
+    if (!buf) return "";
+    if (buf_size < 2) {
+        if (buf_size) buf[0] = '\0';
+        return buf;
     }
 
     char *out = buf;
@@ -1508,32 +1509,39 @@ const char *ansi_bar(char *buf, size_t buf_size,
     int remainder   = eighths % 8;   /* selects partial block 1-7 */
     int empty       = width - full_blocks - (remainder ? 1 : 0);
 
-    /* Resolve color name to tag string */
+    /* Resolve color name to tag string — only emit if both [color] and [/]
+       fit completely, so we never produce an incomplete tag like "[re" */
     int has_color = 0;
     if (color) {
         const AttrEntry *a = lookup_attr(color, strlen(color));
         if (a && a->fg_code) {
-            /* Emit [color] open tag */
-            if (out < end) *out++ = '[';
-            const char *c = color;
-            while (*c && out < end) *out++ = *c++;
-            if (out < end) *out++ = ']';
-            has_color = 1;
+            size_t clen = strlen(color);
+            size_t need = (clen + 2) + 3;  /* [color] + [/] */
+            if (out + need <= end) {
+                *out++ = '[';
+                memcpy(out, color, clen); out += clen;
+                *out++ = ']';
+                has_color = 1;
+            }
         }
     }
 
+    /* When color is active, reserve 3 bytes for the [/] close tag so that
+       block-writing loops cannot consume space needed for it. */
+    char *blk_end = has_color ? end - 3 : end;
+
     /* Emit full blocks */
-    for (int i = 0; i < full_blocks && out + 3 <= end; i++) {
+    for (int i = 0; i < full_blocks && out + 3 <= blk_end; i++) {
         memcpy(out, BAR_FULL, 3); out += 3;
     }
 
     /* Emit partial block (1/8 through 7/8) */
-    if (remainder > 0 && out + 3 <= end) {
+    if (remainder > 0 && out + 3 <= blk_end) {
         memcpy(out, BAR_PARTIAL[remainder], 3); out += 3;
     }
 
     /* Close color tag before empty track */
-    if (has_color && out + 3 <= end) {
+    if (has_color) {
         memcpy(out, "[/]", 3); out += 3;
     }
 
