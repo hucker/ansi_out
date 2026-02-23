@@ -220,6 +220,31 @@ Or on the command line: `-DANSI_PRINT_MINIMAL`
 | `ANSI_PRINT_WINDOW`          | 1             | `ansi_window_start/line/end()` streaming boxed text |
 | `ANSI_PRINT_BAR`             | 1             | `ansi_bar()` inline horizontal bar graphs           |
 
+### Approximate Flash Impact
+
+Each row shows the approximate flash cost (code + read-only data) when a single
+feature flag is enabled on top of a minimal build.  Measured with
+`clang -Os -ffunction-sections -fdata-sections` on x86-64; absolute sizes will
+vary by target architecture but the relative costs are representative.
+
+| Feature Flag                 | Flash    | Delta    | Notes                             |
+| ---------------------------- | -------: | -------: | --------------------------------- |
+| *Minimal baseline*           |  3.5 KB  | —        | 8 colors, `fg:/bg:`, tag parsing  |
+| `ANSI_PRINT_UNICODE`         |  3.9 KB  | +0.4 KB  | `:U-XXXX:` codepoint escapes      |
+| `ANSI_PRINT_BRIGHT_COLORS`   |  4.1 KB  | +0.5 KB  | 8 bright color name entries       |
+| `ANSI_PRINT_STYLES`          |  4.1 KB  | +0.6 KB  | 6 style attributes                |
+| `ANSI_PRINT_EXTENDED_COLORS` |  4.3 KB  | +0.8 KB  | 12 extra color name entries       |
+| `ANSI_PRINT_EMOJI`           |  4.5 KB  | +0.9 KB  | 21 core emoji shortcodes          |
+| `ANSI_PRINT_BAR`             |  4.7 KB  | +1.1 KB  | Bar graphs with block elements    |
+| `ANSI_PRINT_BANNER`          |  4.7 KB  | +1.2 KB  | Boxed text with box-drawing chars |
+| `ANSI_PRINT_GRADIENTS`       |  5.3 KB  | +1.8 KB  | Rainbow + gradient (24-bit color) |
+| `ANSI_PRINT_WINDOW`          |  5.8 KB  | +2.3 KB  | Streaming boxed window output     |
+| `ANSI_PRINT_EXTENDED_EMOJI`  |  9.4 KB  | +5.9 KB  | +130 emoji (requires `EMOJI`)     |
+| *Full build (all enabled)*   | 18.8 KB  | +15.2 KB | Everything                        |
+
+RAM usage is minimal in all configurations: ~92 bytes (BSS) for a minimal build,
+~128 bytes with all features enabled, plus the caller-provided format buffer.
+
 ### Example app_cfg.h (minimal embedded build)
 
 ```c
