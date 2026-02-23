@@ -152,7 +152,7 @@
 #endif
 
 /** @def ANSI_PRINT_GRADIENTS
- *  Enable rainbow and gradient effects and the ansi_rainbow() function.
+ *  Enable [rainbow] and [gradient] tag effects.
  *  Requires 24-bit true color support. Default: 1 (0 if ANSI_PRINT_MINIMAL). */
 #ifndef ANSI_PRINT_GRADIENTS
 #  define ANSI_PRINT_GRADIENTS        ANSI_PRINT_DEFAULT_
@@ -166,7 +166,7 @@
 #endif
 
 /** @def ANSI_PRINT_BANNER
- *  Enable ansi_banner() for boxed text output with Unicode double-line borders.
+ *  Enable ansi_banner() for boxed text output with Unicode box-drawing borders.
  *  Default: 1 (0 if ANSI_PRINT_MINIMAL). */
 #ifndef ANSI_PRINT_BANNER
 #  define ANSI_PRINT_BANNER           ANSI_PRINT_DEFAULT_
@@ -185,6 +185,20 @@
  *  Default: 1 (0 if ANSI_PRINT_MINIMAL). */
 #ifndef ANSI_PRINT_BAR
 #  define ANSI_PRINT_BAR              ANSI_PRINT_DEFAULT_
+#endif
+
+/** Box style constants for ANSI_PRINT_BOX_STYLE selection. */
+#define ANSI_BOX_LIGHT    0   /* ┌─┐│└─┘├┤  single line   */
+#define ANSI_BOX_HEAVY    1   /* ┏━┓┃┗━┛┣┫  thick line    */
+#define ANSI_BOX_DOUBLE   2   /* ╔═╗║╚═╝╠╣  double line   */
+#define ANSI_BOX_ROUNDED  3   /* ╭─╮│╰─╯├┤  rounded corner */
+
+/** @def ANSI_PRINT_BOX_STYLE
+ *  Select the box-drawing character set used by ansi_banner() and
+ *  ansi_window_*(). Set to one of ANSI_BOX_LIGHT, ANSI_BOX_HEAVY,
+ *  ANSI_BOX_DOUBLE, or ANSI_BOX_ROUNDED. Default: ANSI_BOX_DOUBLE. */
+#ifndef ANSI_PRINT_BOX_STYLE
+#  define ANSI_PRINT_BOX_STYLE        ANSI_BOX_DOUBLE
 #endif
 
 #include <stddef.h>     // size_t
@@ -540,33 +554,6 @@ const char *ansi_format(const char *fmt, ...);
  */
 void ansi_puts(const char *s);
 
-#if ANSI_PRINT_GRADIENTS
-/**
- * @brief Print a string with a rainbow color gradient.
- *
- * Each visible character is printed in a different color from a 21-step
- * rainbow palette (red -> yellow -> green -> cyan -> blue -> magenta),
- * stretched to span the full string regardless of length. Spaces and
- * newlines pass through without advancing the color index.
- *
- * Emits ANSI 256-color codes directly (no tag parsing overhead).
- * Respects global color enable/disable state.
- * Does not apply bold or any other style -- wrap the call with
- * ansi_puts("[bold]") / ansi_puts("[/]") if bold is desired.
- *
- * @note The input string is treated as plain text -- [tag] markup and
- *       :emoji: shortcodes are not parsed.  The same limitation applies
- *       to text inside [rainbow] and [gradient] spans in ansi_print().
- *
- * @param s  Null-terminated string to print.
- *
- * @code
- * ansi_rainbow("Hello, World!");
- * @endcode
- */
-void ansi_rainbow(const char *s);
-#endif
-
 #if ANSI_PRINT_BANNER || ANSI_PRINT_WINDOW
 /**
  * @brief Text alignment for ansi_banner() and ansi_window functions.
@@ -582,7 +569,8 @@ typedef enum {
 /**
  * @brief Print text inside a colored Unicode box border.
  *
- * Draws a double-line box (╔═╗║╚═╝) around the formatted text, with both
+ * Draws a box around the formatted text using the character set selected
+ * by ANSI_PRINT_BOX_STYLE (default: double-line ╔═╗║╚═╝), with both
  * the border and text rendered in the specified foreground color. Useful
  * for prominent status messages, error banners, and pass/fail indicators.
  *
@@ -601,14 +589,17 @@ typedef enum {
  * @param fmt    Printf-style format string for the banner text.
  * @param ...    Variable arguments for printf formatting.
  *
+ * @warning The entire formatted string (all lines) must fit in the buffer
+ *          provided to ansi_init(). Text that exceeds the buffer is silently
+ *          truncated, which may lose trailing lines. For large multi-line
+ *          content, prefer ansi_window_line() which formats one line at a time.
+ *
  * @warning Uses the same internal buffer as ansi_format() and ansi_print().
  *          A pointer returned by ansi_format() is invalidated by calling
  *          this function.
  *
- * @code
- * ansi_banner("red", 0, ANSI_ALIGN_LEFT, "Error: file %s not found", filename);
- * ansi_banner("green", 40, ANSI_ALIGN_CENTER, "PASS: %d tests\nFAIL: %d tests", pass, fail);
- * @endcode
+ * Example: `ansi_banner("red", 0, ANSI_ALIGN_LEFT, "Line1\nLine2");`
+ * produces a ╔═══╗ / ║ … ║ / ╚═══╝ box with one row per line.
  */
 void ansi_banner(const char *color, int width, ansi_align_t align,
                  const char *fmt, ...);
@@ -693,7 +684,8 @@ typedef enum {
  * bars can coexist in the same printf argument list -- each call writes to
  * its own buffer with no shared state.
  *
- * The filled portion uses 1/8-character-cell resolution (8 steps per cell).
+ * The filled portion uses 1/8-character-cell resolution (8 steps per cell),
+ * so a 13-character-wide bar provides over 100 discrete steps.
  * The @c track parameter selects the character used for unfilled cells.
  *
  * A buffer of 128 bytes supports bars up to ~30 characters wide.

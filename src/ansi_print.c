@@ -32,40 +32,74 @@
 #define INVERT "\x1b[7m"
 #define STRIKETHROUGH "\x1b[9m"
 
-/* Box-drawing characters (UTF-8 byte sequences) for ansi_banner/window */
-#define BOX_TL  "\xe2\x95\x94"  /* ╔ */
-#define BOX_TR  "\xe2\x95\x97"  /* ╗ */
-#define BOX_BL  "\xe2\x95\x9a"  /* ╚ */
-#define BOX_BR  "\xe2\x95\x9d"  /* ╝ */
-#define BOX_H   "\xe2\x95\x90"  /* ═ */
-#define BOX_V   "\xe2\x95\x91"  /* ║ */
-#define BOX_ML  "\xe2\x95\xa0"  /* ╠ */
-#define BOX_MR  "\xe2\x95\xa3"  /* ╣ */
+/* Box-drawing characters (UTF-8 byte sequences) for ansi_banner/window.
+   Style selected at compile time via ANSI_PRINT_BOX_STYLE. */
+#if ANSI_PRINT_BOX_STYLE == ANSI_BOX_LIGHT
+#define BOX_TOPLEFT     "\xe2\x94\x8c"  /* U+250C  ┌ */
+#define BOX_TOPRIGHT    "\xe2\x94\x90"  /* U+2510  ┐ */
+#define BOX_BOTTOMLEFT  "\xe2\x94\x94"  /* U+2514  └ */
+#define BOX_BOTTOMRIGHT "\xe2\x94\x98"  /* U+2518  ┘ */
+#define BOX_HORZ        "\xe2\x94\x80"  /* U+2500  ─ */
+#define BOX_VERT        "\xe2\x94\x82"  /* U+2502  │ */
+#define BOX_MIDLEFT     "\xe2\x94\x9c"  /* U+251C  ├ */
+#define BOX_MIDRIGHT    "\xe2\x94\xa4"  /* U+2524  ┤ */
+#elif ANSI_PRINT_BOX_STYLE == ANSI_BOX_HEAVY
+#define BOX_TOPLEFT     "\xe2\x94\x8f"  /* U+250F  ┏ */
+#define BOX_TOPRIGHT    "\xe2\x94\x93"  /* U+2513  ┓ */
+#define BOX_BOTTOMLEFT  "\xe2\x94\x97"  /* U+2517  ┗ */
+#define BOX_BOTTOMRIGHT "\xe2\x94\x9b"  /* U+251B  ┛ */
+#define BOX_HORZ        "\xe2\x94\x81"  /* U+2501  ━ */
+#define BOX_VERT        "\xe2\x94\x83"  /* U+2503  ┃ */
+#define BOX_MIDLEFT     "\xe2\x94\xa3"  /* U+2523  ┣ */
+#define BOX_MIDRIGHT    "\xe2\x94\xab"  /* U+252B  ┫ */
+#elif ANSI_PRINT_BOX_STYLE == ANSI_BOX_DOUBLE
+#define BOX_TOPLEFT     "\xe2\x95\x94"  /* U+2554  ╔ */
+#define BOX_TOPRIGHT    "\xe2\x95\x97"  /* U+2557  ╗ */
+#define BOX_BOTTOMLEFT  "\xe2\x95\x9a"  /* U+255A  ╚ */
+#define BOX_BOTTOMRIGHT "\xe2\x95\x9d"  /* U+255D  ╝ */
+#define BOX_HORZ        "\xe2\x95\x90"  /* U+2550  ═ */
+#define BOX_VERT        "\xe2\x95\x91"  /* U+2551  ║ */
+#define BOX_MIDLEFT     "\xe2\x95\xa0"  /* U+2560  ╠ */
+#define BOX_MIDRIGHT    "\xe2\x95\xa3"  /* U+2563  ╣ */
+#elif ANSI_PRINT_BOX_STYLE == ANSI_BOX_ROUNDED
+#define BOX_TOPLEFT     "\xe2\x95\xad"  /* U+256D  ╭ */
+#define BOX_TOPRIGHT    "\xe2\x95\xae"  /* U+256E  ╮ */
+#define BOX_BOTTOMLEFT  "\xe2\x95\xb0"  /* U+2570  ╰ */
+#define BOX_BOTTOMRIGHT "\xe2\x95\xaf"  /* U+256F  ╯ */
+#define BOX_HORZ        "\xe2\x94\x80"  /* U+2500  ─ */
+#define BOX_VERT        "\xe2\x94\x82"  /* U+2502  │ */
+#define BOX_MIDLEFT     "\xe2\x94\x9c"  /* U+251C  ├ */
+#define BOX_MIDRIGHT    "\xe2\x94\xa4"  /* U+2524  ┤ */
+#else
+#error "Unknown ANSI_PRINT_BOX_STYLE value"
+#endif
 
 #if ANSI_PRINT_BAR
 /* Block elements for bar rendering (UTF-8 byte sequences) */
-#define BAR_FULL    "\xe2\x96\x88"  /* █ U+2588  full block    */
-#define BAR_78      "\xe2\x96\x89"  /* ▉ U+2589  7/8 block     */
-#define BAR_68      "\xe2\x96\x8a"  /* ▊ U+258A  6/8 block     */
-#define BAR_58      "\xe2\x96\x8b"  /* ▋ U+258B  5/8 block     */
-#define BAR_48      "\xe2\x96\x8c"  /* ▌ U+258C  4/8 block     */
-#define BAR_38      "\xe2\x96\x8d"  /* ▍ U+258D  3/8 block     */
-#define BAR_28      "\xe2\x96\x8e"  /* ▎ U+258E  2/8 block     */
-#define BAR_18      "\xe2\x96\x8f"  /* ▏ U+258F  1/8 block     */
-static const char * const BAR_PARTIAL[] = {
-    NULL,     /* 0 -- no partial block */
-    BAR_18,   /* 1/8 */
-    BAR_28,   /* 2/8 */
-    BAR_38,   /* 3/8 */
-    BAR_48,   /* 4/8 */
-    BAR_58,   /* 5/8 */
-    BAR_68,   /* 6/8 */
-    BAR_78,   /* 7/8 */
+#define BAR_1_OF_8  "\xe2\x96\x8f"  /* U+258F  Left One Eighth Block    */
+#define BAR_2_OF_8  "\xe2\x96\x8e"  /* U+258E  Left One Quarter Block   */
+#define BAR_3_OF_8  "\xe2\x96\x8d"  /* U+258D  Left Three Eighths Block */
+#define BAR_4_OF_8  "\xe2\x96\x8c"  /* U+258C  Left Half Block          */
+#define BAR_5_OF_8  "\xe2\x96\x8b"  /* U+258B  Left Five Eighths Block  */
+#define BAR_6_OF_8  "\xe2\x96\x8a"  /* U+258A  Left Three Quarters Block */
+#define BAR_7_OF_8  "\xe2\x96\x89"  /* U+2589  Left Seven Eighths Block */
+#define BAR_8_OF_8  "\xe2\x96\x88"  /* U+2588  Full Block               */
+/** Block characters indexed by eighths (0 = none, 1–7 = partial, 8 = full) */
+static const char * const m_bar_block[] = {
+    NULL,        /* 0 -- no block */
+    BAR_1_OF_8,  /* 1/8 */
+    BAR_2_OF_8,  /* 2/8 */
+    BAR_3_OF_8,  /* 3/8 */
+    BAR_4_OF_8,  /* 4/8 */
+    BAR_5_OF_8,  /* 5/8 */
+    BAR_6_OF_8,  /* 6/8 */
+    BAR_7_OF_8,  /* 7/8 */
+    BAR_8_OF_8,  /* 8/8 */
 };
 
 /* Track characters indexed by ansi_bar_track_t.
  * Each entry: { utf8_string, byte_length } */
-static const struct { const char *s; int len; } BAR_TRACK[] = {
+static const struct { const char *s; int len; } m_bar_track[] = {
     { " ",                 1 },  /* ANSI_BAR_BLANK */
     { "\xe2\x96\x91",     3 },  /* ANSI_BAR_LIGHT  ░ U+2591 */
     { "\xe2\x96\x92",     3 },  /* ANSI_BAR_MED    ▒ U+2592 */
@@ -95,7 +129,7 @@ static int m_color_enabled = 1;
 static int m_no_color_lock = 0;  /* set by ansi_enable() when NO_COLOR env is present */
 #endif
 
-/* Emit a string by calling the user-provided putc function for each character */
+/** Emit a string by calling the user-provided putc function for each character */
 static void output_string(const char *s)
 {
     if (!s) return;
@@ -131,7 +165,8 @@ typedef struct {
     RGB         rgb;   /* for gradient interpolation; {0,0,0} for styles */
 } AttrEntry;
 
-/* ATTR: auto-compute name length from string literal */
+/* Pre-compute name length at compile time so lookup can reject on length
+   before calling memcmp — avoids O(table_size * name_len) per query. */
 #define ATTR(n, fg, bg, sty, r, g, b)  { (n), sizeof(n)-1, (fg), (bg), (sty), {(r),(g),(b)} }
 
 static const AttrEntry ATTRS[] = {
@@ -199,9 +234,13 @@ typedef struct {
     const char *utf8;
 } EmojiEntry;
 
-/* EMOJI: auto-compute name length from string literal */
+/* Pre-compute name length at compile time via sizeof so lookup can reject
+   length mismatches immediately without calling strlen on every entry. */
 #define EMOJI(n, u)  { (n), sizeof(n)-1, (u) }
 
+/* Grouped by category for readability, not sorted alphabetically.
+   Lookup is linear O(n) — fast enough for this table size. and
+   the fact that we won't have that many emojis*/
 static const EmojiEntry EMOJIS[] = {
     EMOJI("check",          "\xe2\x9c\x85"      ),  /* ✅ U+2705 */
     EMOJI("cross",          "\xe2\x9d\x8c"      ),  /* ❌ U+274C */
@@ -403,7 +442,7 @@ static const EmojiEntry EMOJIS[] = {
 
 #define EMOJI_COUNT (sizeof(EMOJIS) / sizeof(EMOJIS[0]))
 
-/* O(n) linear scan -- fast enough for ~150 entries on typical hardware. */
+/** Find emoji entry by shortcode name (linear scan over EMOJIS table) */
 static const EmojiEntry *lookup_emoji(const char *s, size_t len)
 {
     for (size_t i = 0; i < EMOJI_COUNT; ++i) {
@@ -462,11 +501,11 @@ typedef struct {
 static GradientState m_gradient;
 #endif /* ANSI_PRINT_GRADIENTS */
 
-/* Returns pointer to first occurrence of " on " in s of length len, or NULL */
+/** Find " on " separator in tag content (splits fg from bg) */
 static const char *find_on(const char *s, size_t len)
 {
     if (!s || len < 4) return NULL;
-    for (size_t i = 0; i <= len - 4; ++i) {
+    for (size_t i = 0; i + 4 <= len; ++i) {
         if (s[i] == ' ' && s[i+1] == 'o' && s[i+2] == 'n' && s[i+3] == ' ')
             return s + i;
     }
@@ -474,6 +513,7 @@ static const char *find_on(const char *s, size_t len)
 }
 
 
+/** Re-emit ANSI codes for current fg/bg/styles after a RESET */
 static void reapply_state(void)
 {
     if (m_tag_state.fg_code) output_string(m_tag_state.fg_code);
@@ -492,7 +532,7 @@ static void reapply_state(void)
 /* Lookup helper                                                              */
 /* ------------------------------------------------------------------------- */
 
-/* O(n) linear scan -- fast enough for ~28 entries. */
+/** Find color/style entry by name (linear scan over ATTRS table) */
 static const AttrEntry *lookup_attr(const char *s, size_t len)
 {
     for (size_t i = 0; i < sizeof(ATTRS)/sizeof(ATTRS[0]); ++i) {
@@ -505,9 +545,7 @@ static const AttrEntry *lookup_attr(const char *s, size_t len)
 }
 
 #if ANSI_PRINT_UNICODE
-/* Try to parse :U-XXXX: content (the part between colons).
-   s points to the name, len is the name length.
-   Returns non-zero and sets *out on success, 0 on failure. */
+/** Parse :U-XXXX: hex codepoint between colons; returns 1 on success, 0 on failure */
 static int try_parse_unicode(const char *s, size_t len, uint32_t *out)
 {
     if (len < 3 || len > 8 || s[0] != 'U' || s[1] != '-') return 0;
@@ -522,75 +560,155 @@ static int try_parse_unicode(const char *s, size_t len, uint32_t *out)
         cp = (cp << 4) | nibble;
     }
     if (cp == 0 || cp > 0x10FFFF) return 0;
+    if (cp >= 0xD800 && cp <= 0xDFFF) return 0;  /* reject surrogates */
     *out = cp;
     return 1;
 }
 #endif /* ANSI_PRINT_UNICODE */
 
 /* ------------------------------------------------------------------------- */
+/* Markup tokenizer                                                           */
+/* ------------------------------------------------------------------------- */
+
+typedef enum {
+    TOK_CHAR,        /* regular character (possibly multi-byte UTF-8) */
+    TOK_TAG,         /* [tag] content between brackets */
+    TOK_EMOJI,       /* :name: resolved emoji UTF-8 string */
+    TOK_UNICODE,     /* :U-XXXX: resolved codepoint */
+    TOK_ESC_BRACKET, /* [[ or ]] — literal bracket */
+    TOK_ESC_COLON,   /* :: — literal colon */
+    TOK_END          /* end of string */
+} MarkupTokenType;
+
+typedef struct {
+    MarkupTokenType type;
+    const char *ptr;    /* TOK_TAG: tag content; TOK_CHAR: start of char bytes */
+    size_t      len;    /* TOK_TAG: tag length; TOK_CHAR: byte count (1-4) */
+    union {
+        char        ch;        /* TOK_ESC_BRACKET/COLON: the literal character */
+        const char *emoji;     /* TOK_EMOJI: UTF-8 string pointer */
+        uint32_t    codepoint; /* TOK_UNICODE: parsed codepoint value */
+    } val;
+} MarkupToken;
+
+/** Advance *pos past the next markup token and fill tok.
+    Returns 1 on success, 0 when the string is exhausted (TOK_END). */
+static int next_markup_token(const char **pos, MarkupToken *tok)
+{
+    const char *p = *pos;
+    if (!*p) { tok->type = TOK_END; return 0; }
+
+    /* Escaped brackets: [[ → '[', ]] → ']' */
+    if (p[0] == '[' && p[1] == '[') {
+        tok->type = TOK_ESC_BRACKET; tok->val.ch = '[';
+        *pos = p + 2; return 1;
+    }
+    if (p[0] == ']' && p[1] == ']') {
+        tok->type = TOK_ESC_BRACKET; tok->val.ch = ']';
+        *pos = p + 2; return 1;
+    }
+
+#if ANSI_PRINT_EMOJI || ANSI_PRINT_UNICODE
+    /* Escaped colon: :: → ':' */
+    if (p[0] == ':' && p[1] == ':') {
+        tok->type = TOK_ESC_COLON; tok->val.ch = ':';
+        *pos = p + 2; return 1;
+    }
+#endif
+
+    /* [tag] */
+    if (*p == '[') {
+        const char *e = strchr(p + 1, ']');
+        if (e) {
+            tok->type = TOK_TAG;
+            tok->ptr  = p + 1;
+            tok->len  = (size_t)(e - (p + 1));
+            *pos = e + 1; return 1;
+        }
+    }
+
+#if ANSI_PRINT_EMOJI || ANSI_PRINT_UNICODE
+    /* :name: — try emoji, then unicode */
+    if (*p == ':') {
+        const char *end = strchr(p + 1, ':');
+        if (end && end > p + 1) {
+            size_t name_len = (size_t)(end - (p + 1));
+#if ANSI_PRINT_EMOJI
+            {
+                const EmojiEntry *em = lookup_emoji(p + 1, name_len);
+                if (em) {
+                    tok->type = TOK_EMOJI;
+                    tok->val.emoji = em->utf8;
+                    *pos = end + 1; return 1;
+                }
+            }
+#endif
+#if ANSI_PRINT_UNICODE
+            {
+                uint32_t cp;
+                if (try_parse_unicode(p + 1, name_len, &cp)) {
+                    tok->type = TOK_UNICODE;
+                    tok->val.codepoint = cp;
+                    *pos = end + 1; return 1;
+                }
+            }
+#endif
+        }
+    }
+#endif
+
+    /* Regular character — consume full UTF-8 sequence */
+    tok->type = TOK_CHAR;
+    tok->ptr  = p;
+    tok->val.ch = *p;
+    p++;
+    /* Drain UTF-8 continuation bytes (0x80-0xBF) */
+    while ((unsigned char)*p >= 0x80 && (unsigned char)*p <= 0xBF) p++;
+    tok->len = (size_t)(p - tok->ptr);
+    *pos = p;
+    return 1;
+}
+
+/** Emit all bytes of a TOK_CHAR token (handles multi-byte UTF-8) */
+static void emit_token_bytes(const MarkupToken *tok)
+{
+    for (size_t i = 0; i < tok->len; i++)
+        m_putc_function(tok->ptr[i]);
+}
+
+/* ------------------------------------------------------------------------- */
 /* Tag emission                                                               */
 /* ------------------------------------------------------------------------- */
 
 #if ANSI_PRINT_GRADIENTS
-/* Count visible characters from p until [/name] or [/] is found.
-   Used to pre-scan text length so effects (gradient, rainbow) span exactly. */
+/** Count visible characters from p until [/name] or [/] is found (for gradient/rainbow pre-scan) */
 static int count_effect_chars(const char *p, const char *name, size_t name_len)
 {
     int count = 0;
-    while (*p) {
-        if (p[0] == '[' && p[1] == '[') { p += 2; count++; continue; }
-        if (p[0] == ']' && p[1] == ']') { p += 2; count++; continue; }
-#if ANSI_PRINT_EMOJI || ANSI_PRINT_UNICODE
-        if (p[0] == ':' && p[1] == ':') { p += 2; count++; continue; }
-#endif
-        if (*p == '[') {
-            const char *e = strchr(p + 1, ']');
-            if (e) {
-                size_t tlen = (size_t)(e - (p + 1));
-                const char *t = p + 1;
-                /* Stop at [/] or [/name] (exact match only) */
-                if (t[0] == '/' && (tlen == 1 ||
-                    (tlen >= name_len + 1 &&
-                     memcmp(t + 1, name, name_len) == 0 &&
-                     (tlen == name_len + 1 || t[name_len + 1] == ' '))))
-                    break;
-                p = e + 1;
-                continue;
-            }
+    MarkupToken tok;
+    while (next_markup_token(&p, &tok)) {
+        switch (tok.type) {
+        case TOK_TAG:
+            /* Stop at [/] or [/name] (exact match only) */
+            if (tok.ptr[0] == '/' && (tok.len == 1 ||
+                (tok.len >= name_len + 1 &&
+                 memcmp(tok.ptr + 1, name, name_len) == 0 &&
+                 (tok.len == name_len + 1 || tok.ptr[name_len + 1] == ' '))))
+                return count > 0 ? count : 1;
+            break; /* skip other tags */
+        case TOK_CHAR:
+            if (tok.val.ch != ' ' && tok.val.ch != '\t' && tok.val.ch != '\n')
+                count++;
+            break;
+        default: /* ESC_BRACKET, ESC_COLON, EMOJI, UNICODE all count as 1 */
+            count++;
+            break;
         }
-#if ANSI_PRINT_EMOJI || ANSI_PRINT_UNICODE
-        /* :name: counts as one visible character */
-        if (*p == ':') {
-            const char *end = strchr(p + 1, ':');
-            if (end && end > p + 1) {
-                size_t elen = (size_t)(end - (p + 1));
-#if ANSI_PRINT_EMOJI
-                if (lookup_emoji(p + 1, elen)) {
-                    count++;
-                    p = end + 1;
-                    continue;
-                }
-#endif
-#if ANSI_PRINT_UNICODE
-                {
-                    uint32_t cp;
-                    if (try_parse_unicode(p + 1, elen, &cp)) {
-                        count++;
-                        p = end + 1;
-                        continue;
-                    }
-                }
-#endif
-            }
-        }
-#endif
-        if (*p != ' ' && *p != '\t' && *p != '\n') count++;
-        p++;
     }
     return count > 0 ? count : 1; /* avoid division by zero */
 }
 
-/* Parse [gradient color1 color2] arguments and activate gradient state */
+/** Parse [gradient color1 color2] arguments and activate gradient state */
 static void parse_gradient_tag(const char *args, size_t len)
 {
     /* Extract first color name */
@@ -617,6 +735,7 @@ static void parse_gradient_tag(const char *args, size_t len)
 }
 #endif /* ANSI_PRINT_GRADIENTS */
 
+/** Handle [/tag]: clear matching fg/bg/style and reset ANSI state */
 static void emit_close_tag(const char *tag, size_t len)
 {
     if (len == 0) { /* [/] resets to defaults */
@@ -649,12 +768,13 @@ static void emit_close_tag(const char *tag, size_t len)
     }
 #endif
 
+    /* Split "[/red bold on yellow]" into fg words ("red bold") and bg ("yellow") */
     const char *on = find_on(tag,len);
     size_t fg_len = on ? (size_t)(on - tag) : len;
     const char *bg = on ? on + 4 : NULL;
     size_t bg_len = on ? (len - (size_t)(bg - tag)) : 0;
 
-    /* Foreground */
+    /* Foreground: walk each word and undo its effect if it matches current state */
     const char *p = tag;
     while (p < tag + fg_len) {
         while (p < tag + fg_len && isspace((unsigned char)*p)) p++;
@@ -674,7 +794,7 @@ static void emit_close_tag(const char *tag, size_t len)
             continue;
         }
 
-        /* Numeric fg: fg:<num> — only clear if value matches */
+        /* Numeric fg: fg:<num> — only clear if the built code matches current */
         if (wl > 3 && memcmp(w, "fg:", 3) == 0 && m_tag_state.fg_code) {
             char *endptr;
             long val = strtol(w + 3, &endptr, 10);
@@ -688,7 +808,7 @@ static void emit_close_tag(const char *tag, size_t len)
         }
     }
 
-    /* Background */
+    /* Background: clear bg color only if the close tag names the active one */
     if (bg && bg_len && m_tag_state.bg_code) {
         while (bg_len && isspace((unsigned char)*bg)) { bg++; bg_len--; }
         while (bg_len && isspace((unsigned char)bg[bg_len - 1])) bg_len--;
@@ -713,6 +833,7 @@ static void emit_close_tag(const char *tag, size_t len)
     reapply_state();
 }
 
+/** Handle [tag]: apply fg/bg colors and styles, or delegate to close/gradient */
 static void emit_tag(const char *tag, size_t len)
 {
     if (!m_color_enabled || len == 0) return;
@@ -878,8 +999,7 @@ void ansi_set_bg(const char *color)
 }
 
 #if ANSI_PRINT_GRADIENTS
-/* Emit per-character gradient or rainbow color code if active.
-   Call once before emitting each visible character. */
+/** Emit per-character gradient or rainbow color code (call before each visible char) */
 static void emit_char_color(void)
 {
     if ((m_tag_state.styles & STYLE_GRADIENT) && m_color_enabled) {
@@ -908,7 +1028,7 @@ static void emit_char_color(void) { }
 #endif /* ANSI_PRINT_GRADIENTS */
 
 #if ANSI_PRINT_UNICODE
-/* Encode a Unicode codepoint as UTF-8 and emit via m_putc_fn */
+/** Encode a Unicode codepoint as UTF-8 and emit via putc function */
 static void emit_unicode_codepoint(uint32_t cp)
 {
     if (cp <= 0x7F) {
@@ -930,8 +1050,10 @@ static void emit_unicode_codepoint(uint32_t cp)
 
 #endif /* ANSI_PRINT_UNICODE */
 
+/** Core markup renderer: tokenize Rich-style text and emit with ANSI codes */
 static void ansi_emit(const char *p)
 {
+    if (!p) return;
     m_tag_state.fg_code = NULL;
     m_tag_state.bg_code = NULL;
     m_tag_state.styles  = 0;
@@ -942,65 +1064,43 @@ static void ansi_emit(const char *p)
     m_gradient.idx = 0;
 #endif
 
-    while (*p) {
-        /* Escaped brackets */
-        if (p[0]=='[' && p[1]=='[') { m_putc_function('['); p+=2; continue; }
-        if (p[0]==']' && p[1]==']') { m_putc_function(']'); p+=2; continue; }
-#if ANSI_PRINT_EMOJI || ANSI_PRINT_UNICODE
-        /* Escaped colon */
-        if (p[0]==':' && p[1]==':') { m_putc_function(':'); p+=2; continue; }
-#endif
-
-        /* [tag] handling */
-        if (*p=='[') {
-            const char *e = strchr(p+1,']');
-            if (e) {
-                emit_tag(p+1,(size_t)(e-(p+1)));
-                p=e+1;
+    MarkupToken tok;
+    while (next_markup_token(&p, &tok)) {
+        switch (tok.type) {
+        /* Always-on: literal escapes and plain characters */
+        case TOK_ESC_BRACKET:
+        case TOK_ESC_COLON:
+            m_putc_function(tok.val.ch);
+            break;
+        case TOK_TAG:
+            emit_tag(tok.ptr, tok.len);
 #if ANSI_PRINT_GRADIENTS
-                /* Pre-scan for effect length right after activation */
-                if ((m_tag_state.styles & STYLE_GRADIENT) && m_gradient.len == 0)
-                    m_gradient.len = count_effect_chars(p, "gradient", 8);
-                if ((m_tag_state.styles & STYLE_RAINBOW) && m_rainbow_len == 0)
-                    m_rainbow_len = count_effect_chars(p, "rainbow", 7);
+            if ((m_tag_state.styles & STYLE_GRADIENT) && m_gradient.len == 0)
+                m_gradient.len = count_effect_chars(p, "gradient", 8);
+            if ((m_tag_state.styles & STYLE_RAINBOW) && m_rainbow_len == 0)
+                m_rainbow_len = count_effect_chars(p, "rainbow", 7);
 #endif
-                continue;
-            }
-        }
-
-#if ANSI_PRINT_EMOJI || ANSI_PRINT_UNICODE
-        /* :name: inline substitution (emoji and/or Unicode codepoints) */
-        if (*p == ':') {
-            const char *end = strchr(p + 1, ':');
-            if (end && end > p + 1) {
-                size_t name_len = (size_t)(end - (p + 1));
+            break;
+        case TOK_CHAR:
+            if (tok.val.ch != ' ' && tok.val.ch != '\t' && tok.val.ch != '\n')
+                emit_char_color();
+            emit_token_bytes(&tok);
+            break;
+        /* Feature-gated: only emitted when the corresponding flag is on */
 #if ANSI_PRINT_EMOJI
-                const EmojiEntry *em = lookup_emoji(p + 1, name_len);
-                if (em) {
-                    emit_char_color();
-                    output_string(em->utf8);
-                    p = end + 1;
-                    continue;
-                }
+        case TOK_EMOJI:
+            emit_char_color();
+            output_string(tok.val.emoji);
+            break;
 #endif
 #if ANSI_PRINT_UNICODE
-                {
-                    uint32_t cp;
-                    if (try_parse_unicode(p + 1, name_len, &cp)) {
-                        emit_char_color();
-                        emit_unicode_codepoint(cp);
-                        p = end + 1;
-                        continue;
-                    }
-                }
+        case TOK_UNICODE:
+            emit_char_color();
+            emit_unicode_codepoint(tok.val.codepoint);
+            break;
 #endif
-            }
+        default: break;
         }
-#endif
-
-        /* Per-character color for regular visible characters */
-        if (*p != ' ' && *p != '\t' && *p != '\n') emit_char_color();
-        m_putc_function(*p++);
     }
 
     if (m_color_enabled && (m_tag_state.fg_code||m_tag_state.bg_code||m_tag_state.styles))
@@ -1009,8 +1109,10 @@ static void ansi_emit(const char *p)
     m_flush_function();
 }
 
-void ansi_puts(const char *s) { if(s) ansi_emit(s); }
+/** Emit a pre-built markup string (no formatting) */
+void ansi_puts(const char *s) { ansi_emit(s); }
 
+/** Printf into shared buffer via va_list, return pointer (NULL on error) */
 static const char *ansi_vformat(const char *fmt, va_list ap)
 {
     if (!fmt || !m_buf || !m_buf_size) return NULL;
@@ -1018,6 +1120,7 @@ static const char *ansi_vformat(const char *fmt, va_list ap)
     return m_buf;
 }
 
+/** Printf into shared buffer and return pointer — does not emit */
 const char *ansi_format(const char *fmt, ...)
 {
     va_list ap;
@@ -1027,65 +1130,30 @@ const char *ansi_format(const char *fmt, ...)
     return result;
 }
 
+/** Printf into shared buffer, then emit with markup processing */
 void ansi_print(const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
     const char *result = ansi_vformat(fmt, ap);
     va_end(ap);
-    if (result) ansi_emit(result);
+    ansi_emit(result);
 }
-
-#if ANSI_PRINT_GRADIENTS
-/* Note: ansi_rainbow() treats its input as plain text -- it does not parse
-   [tag] markup or :emoji: shortcodes.  The same applies to [rainbow] and
-   [gradient] spans in ansi_print/ansi_puts: content inside these spans is
-   colored per-character but markup tags are not interpreted. */
-void ansi_rainbow(const char *s)
-{
-    if (!s) return;
-
-    /* Count visible characters for stretch mapping */
-    int total = 0;
-    for (const char *p = s; *p; p++) {
-        if (*p != ' ' && *p != '\t' && *p != '\n') total++;
-    }
-    if (total < 1) total = 1;
-
-    char buf[16];
-    int ci = 0;
-
-    while (*s) {
-        if (m_color_enabled && *s != ' ' && *s != '\t' && *s != '\n') {
-            int pos = ci * (int)(RAINBOW_LEN - 1) / (total > 1 ? total - 1 : 1);
-            if (pos > (int)(RAINBOW_LEN - 1)) pos = (int)(RAINBOW_LEN - 1);
-            snprintf(buf, sizeof(buf), "\x1b[38;5;%dm", RAINBOW[pos]);
-            output_string(buf);
-            ci++;
-        }
-        m_putc_function(*s++);
-    }
-
-    if (m_color_enabled) output_string(RESET);
-    m_flush_function();
-}
-#endif /* ANSI_PRINT_GRADIENTS */
 
 #if ANSI_PRINT_BANNER
 
-/* Count visible characters in a plain text span (no markup).
-   Skips UTF-8 continuation bytes (0x80-0xBF). */
+/** Count visible characters in plain text (skips UTF-8 continuation bytes) */
 static int banner_visible_len(const char *p, int byte_len)
 {
     int vis = 0;
     for (int i = 0; i < byte_len; i++) {
-        if (!((unsigned char)p[i] >= 0x80 && (unsigned char)p[i] <= 0xBF))
+        if (!((unsigned char)p[i] >= 0x80 && (unsigned char)p[i] <= 0xBF)) /* skip UTF-8 continuation bytes */
             vis++;
     }
     return vis;
 }
 
-/* Emit up to max_vis visible characters from plain text, return bytes consumed. */
+/** Emit up to max_vis visible characters from plain text, return bytes consumed */
 static int banner_emit_vis(const char *p, int byte_len, int max_vis)
 {
     int vis = 0, i = 0;
@@ -1093,7 +1161,7 @@ static int banner_emit_vis(const char *p, int byte_len, int max_vis)
         unsigned char c = (unsigned char)p[i];
         m_putc_function(c);
         i++;
-        if (!(c >= 0x80 && c <= 0xBF))
+        if (!(c >= 0x80 && c <= 0xBF)) /* not a UTF-8 continuation byte */
             vis++;
         /* Drain continuation bytes of the character we just started */
         while (i < byte_len &&
@@ -1141,24 +1209,24 @@ void ansi_banner(const char *color, int width, ansi_align_t align,
     if (fg && m_color_enabled) output_string(fg);
 
     /* Top border */
-    output_string(BOX_TL);
-    for (int i = 0; i < width + 2; i++) output_string(BOX_H);
-    output_string(BOX_TR);
+    output_string(BOX_TOPLEFT);
+    for (int i = 0; i < width + 2; i++) output_string(BOX_HORZ);
+    output_string(BOX_TOPRIGHT);
     m_putc_function('\n');
 
-    /* Text lines */
+    /* Walk the buffer line-by-line (split on '\n'), emitting each
+       as a bordered row:  ║ <pad> text <pad> ║ */
     const char *p = m_buf;
     do {
-        /* Find end of current line */
         const char *eol = p;
         while (*eol && *eol != '\n') eol++;
         int byte_len = (int)(eol - p);
         int vis_len = banner_visible_len(p, byte_len);
 
-        output_string(BOX_V);
+        output_string(BOX_VERT);
         m_putc_function(' ');
 
-        /* Output up to width visible chars (truncate if longer) */
+        /* Truncate line to box width, then compute alignment padding */
         int out = vis_len > width ? width : vis_len;
         int pad = width - out;
         int pad_left = 0;
@@ -1171,16 +1239,16 @@ void ansi_banner(const char *color, int width, ansi_align_t align,
         for (int i = 0; i < pad_right; i++) m_putc_function(' ');
 
         m_putc_function(' ');
-        output_string(BOX_V);
+        output_string(BOX_VERT);
         m_putc_function('\n');
 
         p = (*eol == '\n') ? eol + 1 : eol;
     } while (*p);
 
     /* Bottom border */
-    output_string(BOX_BL);
-    for (int i = 0; i < width + 2; i++) output_string(BOX_H);
-    output_string(BOX_BR);
+    output_string(BOX_BOTTOMLEFT);
+    for (int i = 0; i < width + 2; i++) output_string(BOX_HORZ);
+    output_string(BOX_BOTTOMRIGHT);
 
     if (fg && m_color_enabled) output_string(RESET);
     m_putc_function('\n');
@@ -1198,7 +1266,7 @@ void ansi_banner(const char *color, int width, ansi_align_t align,
 static int         m_window_width = 0;
 static const char *m_window_fg    = NULL;  /* border color from start() */
 
-/* Resolve a color name to its ANSI foreground escape code (or NULL) */
+/** Resolve a color name to its ANSI foreground escape code (or NULL) */
 static const char *window_resolve_color(const char *color)
 {
     if (!color) return NULL;
@@ -1206,56 +1274,23 @@ static const char *window_resolve_color(const char *color)
     return a ? a->fg_code : NULL;
 }
 
-/* Count visible characters in text with Rich markup.
-   Tags ([...]) are zero-width; [[ ]] :: each count as 1;
-   :emoji: and :U-XXXX: each count as 1. */
+/** Count visible characters in Rich markup text (tags are zero-width) */
 static int window_count_visible(const char *p)
 {
     int count = 0;
-    while (*p) {
-        if (p[0] == '[' && p[1] == '[') { count++; p += 2; continue; }
-        if (p[0] == ']' && p[1] == ']') { count++; p += 2; continue; }
-#if ANSI_PRINT_EMOJI || ANSI_PRINT_UNICODE
-        if (p[0] == ':' && p[1] == ':') { count++; p += 2; continue; }
-#endif
-        if (*p == '[') {
-            const char *e = strchr(p + 1, ']');
-            if (e) { p = e + 1; continue; }
+    MarkupToken tok;
+    while (next_markup_token(&p, &tok)) {
+        switch (tok.type) {
+        case TOK_TAG: break;                /* tags are invisible */
+        default:      count++; break;       /* everything else is visible */
         }
-#if ANSI_PRINT_EMOJI || ANSI_PRINT_UNICODE
-        if (*p == ':') {
-            const char *end = strchr(p + 1, ':');
-            if (end && end > p + 1) {
-                size_t name_len = (size_t)(end - (p + 1));
-#if ANSI_PRINT_EMOJI
-                if (lookup_emoji(p + 1, name_len)) {
-                    count++; p = end + 1; continue;
-                }
-#endif
-#if ANSI_PRINT_UNICODE
-                {
-                    uint32_t cp;
-                    if (try_parse_unicode(p + 1, name_len, &cp)) {
-                        count++; p = end + 1; continue;
-                    }
-                }
-#endif
-            }
-        }
-#endif
-        /* Skip UTF-8 continuation bytes (0x80-0xBF) */
-        if ((unsigned char)*p >= 0x80 && (unsigned char)*p <= 0xBF) {
-            p++;
-            continue;
-        }
-        count++;
-        p++;
     }
     return count;
 }
 
 /* Emit text through the Rich markup parser, stopping after max_vis visible
    characters.  Resets tag state before and after.  Does NOT call flush. */
+/** Emit Rich markup text, stopping after max_vis visible characters */
 static void window_emit_text(const char *p, int max_vis)
 {
     int vis = 0;
@@ -1269,74 +1304,46 @@ static void window_emit_text(const char *p, int max_vis)
     m_gradient.idx = 0;
 #endif
 
-    while (*p && vis < max_vis) {
-        if (p[0] == '[' && p[1] == '[') {
-            m_putc_function('['); vis++; p += 2; continue;
-        }
-        if (p[0] == ']' && p[1] == ']') {
-            m_putc_function(']'); vis++; p += 2; continue;
-        }
-#if ANSI_PRINT_EMOJI || ANSI_PRINT_UNICODE
-        if (p[0] == ':' && p[1] == ':') {
-            m_putc_function(':'); vis++; p += 2; continue;
-        }
-#endif
-        if (*p == '[') {
-            const char *e = strchr(p + 1, ']');
-            if (e) {
-                emit_tag(p + 1, (size_t)(e - (p + 1)));
-                p = e + 1;
+    MarkupToken tok;
+    while (vis < max_vis && next_markup_token(&p, &tok)) {
+        switch (tok.type) {
+        /* Always-on: literal escapes and plain characters */
+        case TOK_ESC_BRACKET:
+        case TOK_ESC_COLON:
+            m_putc_function(tok.val.ch);
+            vis++;
+            break;
+        case TOK_TAG:
+            emit_tag(tok.ptr, tok.len);
 #if ANSI_PRINT_GRADIENTS
-                if ((m_tag_state.styles & STYLE_GRADIENT) && m_gradient.len == 0)
-                    m_gradient.len = count_effect_chars(p, "gradient", 8);
-                if ((m_tag_state.styles & STYLE_RAINBOW) && m_rainbow_len == 0)
-                    m_rainbow_len = count_effect_chars(p, "rainbow", 7);
+            if ((m_tag_state.styles & STYLE_GRADIENT) && m_gradient.len == 0)
+                m_gradient.len = count_effect_chars(p, "gradient", 8);
+            if ((m_tag_state.styles & STYLE_RAINBOW) && m_rainbow_len == 0)
+                m_rainbow_len = count_effect_chars(p, "rainbow", 7);
 #endif
-                continue;
-            }
-        }
-#if ANSI_PRINT_EMOJI || ANSI_PRINT_UNICODE
-        if (*p == ':') {
-            const char *end = strchr(p + 1, ':');
-            if (end && end > p + 1) {
-                size_t name_len = (size_t)(end - (p + 1));
+            break;
+        case TOK_CHAR:
+            if (tok.val.ch != ' ' && tok.val.ch != '\t' && tok.val.ch != '\n')
+                emit_char_color();
+            emit_token_bytes(&tok);
+            vis++;
+            break;
+        /* Feature-gated: only emitted when the corresponding flag is on */
 #if ANSI_PRINT_EMOJI
-                const EmojiEntry *em = lookup_emoji(p + 1, name_len);
-                if (em) {
-                    emit_char_color();
-                    output_string(em->utf8);
-                    vis++;
-                    p = end + 1;
-                    continue;
-                }
+        case TOK_EMOJI:
+            emit_char_color();
+            output_string(tok.val.emoji);
+            vis++;
+            break;
 #endif
 #if ANSI_PRINT_UNICODE
-                {
-                    uint32_t cp_val;
-                    if (try_parse_unicode(p + 1, name_len, &cp_val)) {
-                        emit_char_color();
-                        emit_unicode_codepoint(cp_val);
-                        vis++;
-                        p = end + 1;
-                        continue;
-                    }
-                }
+        case TOK_UNICODE:
+            emit_char_color();
+            emit_unicode_codepoint(tok.val.codepoint);
+            vis++;
+            break;
 #endif
-            }
-        }
-#endif
-        /* Skip UTF-8 continuation bytes (0x80-0xBF): emit but don't count */
-        if ((unsigned char)*p >= 0x80 && (unsigned char)*p <= 0xBF) {
-            m_putc_function(*p++);
-            continue;
-        }
-        if (*p != ' ' && *p != '\t' && *p != '\n') emit_char_color();
-        m_putc_function(*p++);
-        vis++;
-        /* Drain UTF-8 continuation bytes so multi-byte chars are never
-           split by the vis < max_vis loop condition */
-        while ((unsigned char)*p >= 0x80 && (unsigned char)*p <= 0xBF) {
-            m_putc_function(*p++);
+        default: break;
         }
     }
 
@@ -1346,24 +1353,25 @@ static void window_emit_text(const char *p, int max_vis)
 }
 
 /* Emit one padded plain-text line between ║ borders (used for title) */
+/** Emit one padded plain-text line between box-drawing borders (for title) */
 static void window_emit_line(const char *text, int len, ansi_align_t align)
 {
-    int w = m_window_width;
-    int out = len > w ? w : len;
-    int pad = w - out;
-    int pad_left = 0;
-    if (align == ANSI_ALIGN_CENTER)      pad_left = pad / 2;
-    else if (align == ANSI_ALIGN_RIGHT)  pad_left = pad;
-    int pad_right = pad - pad_left;
+    int width     = m_window_width;
+    int emit_len  = len > width ? width : len;
+    int total_pad = width - emit_len;
+    int pad_left  = 0;
+    if (align == ANSI_ALIGN_CENTER)      pad_left = total_pad / 2;
+    else if (align == ANSI_ALIGN_RIGHT)  pad_left = total_pad;
+    int pad_right = total_pad - pad_left;
 
     if (m_window_fg && m_color_enabled) output_string(m_window_fg);
-    output_string(BOX_V);
+    output_string(BOX_VERT);
     m_putc_function(' ');
     for (int i = 0; i < pad_left; i++)  m_putc_function(' ');
-    for (int i = 0; i < out; i++)       m_putc_function(text[i]);
+    for (int i = 0; i < emit_len; i++)  m_putc_function(text[i]);
     for (int i = 0; i < pad_right; i++) m_putc_function(' ');
     m_putc_function(' ');
-    output_string(BOX_V);
+    output_string(BOX_VERT);
     if (m_window_fg && m_color_enabled) output_string(RESET);
     m_putc_function('\n');
 }
@@ -1376,9 +1384,9 @@ void ansi_window_start(const char *color, int width, ansi_align_t align,
 
     /* Top border */
     if (m_window_fg && m_color_enabled) output_string(m_window_fg);
-    output_string(BOX_TL);
-    for (int i = 0; i < m_window_width + 2; i++) output_string(BOX_H);
-    output_string(BOX_TR);
+    output_string(BOX_TOPLEFT);
+    for (int i = 0; i < m_window_width + 2; i++) output_string(BOX_HORZ);
+    output_string(BOX_TOPRIGHT);
     if (m_window_fg && m_color_enabled) output_string(RESET);
     m_putc_function('\n');
 
@@ -1388,9 +1396,9 @@ void ansi_window_start(const char *color, int width, ansi_align_t align,
 
         /* Separator */
         if (m_window_fg && m_color_enabled) output_string(m_window_fg);
-        output_string(BOX_ML);
-        for (int i = 0; i < m_window_width + 2; i++) output_string(BOX_H);
-        output_string(BOX_MR);
+        output_string(BOX_MIDLEFT);
+        for (int i = 0; i < m_window_width + 2; i++) output_string(BOX_HORZ);
+        output_string(BOX_MIDRIGHT);
         if (m_window_fg && m_color_enabled) output_string(RESET);
         m_putc_function('\n');
     }
@@ -1405,18 +1413,18 @@ void ansi_window_line(ansi_align_t align, const char *fmt, ...)
     vsnprintf(m_buf, m_buf_size, fmt, ap);
     va_end(ap);
 
-    int vis = window_count_visible(m_buf);
-    int w   = m_window_width;
-    int out = vis > w ? w : vis;
-    int pad = w - out;
-    int pad_left = 0;
-    if (align == ANSI_ALIGN_CENTER)      pad_left = pad / 2;
-    else if (align == ANSI_ALIGN_RIGHT)  pad_left = pad;
-    int pad_right = pad - pad_left;
+    int visible   = window_count_visible(m_buf);
+    int width     = m_window_width;
+    int emit_len  = visible > width ? width : visible;
+    int total_pad = width - emit_len;
+    int pad_left  = 0;
+    if (align == ANSI_ALIGN_CENTER)      pad_left = total_pad / 2;
+    else if (align == ANSI_ALIGN_RIGHT)  pad_left = total_pad;
+    int pad_right = total_pad - pad_left;
 
     /* Left border in border color */
     if (m_window_fg && m_color_enabled) output_string(m_window_fg);
-    output_string(BOX_V);
+    output_string(BOX_VERT);
     m_putc_function(' ');
     if (m_window_fg && m_color_enabled) output_string(RESET);
 
@@ -1424,7 +1432,7 @@ void ansi_window_line(ansi_align_t align, const char *fmt, ...)
     for (int i = 0; i < pad_left; i++) m_putc_function(' ');
 
     /* Text with Rich markup processing (truncated to window width) */
-    window_emit_text(m_buf, out);
+    window_emit_text(m_buf, emit_len);
 
     /* Right padding */
     for (int i = 0; i < pad_right; i++) m_putc_function(' ');
@@ -1432,17 +1440,23 @@ void ansi_window_line(ansi_align_t align, const char *fmt, ...)
     /* Right border in border color */
     if (m_window_fg && m_color_enabled) output_string(m_window_fg);
     m_putc_function(' ');
-    output_string(BOX_V);
+    output_string(BOX_VERT);
     if (m_window_fg && m_color_enabled) output_string(RESET);
     m_putc_function('\n');
 }
 
+/**
+ * @brief Close a window by emitting the bottom border.
+ *
+ * Emits the bottom border in the color set by ansi_window_start(),
+ * then flushes output.
+ */
 void ansi_window_end(void)
 {
     if (m_window_fg && m_color_enabled) output_string(m_window_fg);
-    output_string(BOX_BL);
-    for (int i = 0; i < m_window_width + 2; i++) output_string(BOX_H);
-    output_string(BOX_BR);
+    output_string(BOX_BOTTOMLEFT);
+    for (int i = 0; i < m_window_width + 2; i++) output_string(BOX_HORZ);
+    output_string(BOX_BOTTOMRIGHT);
     if (m_window_fg && m_color_enabled) output_string(RESET);
     m_putc_function('\n');
     m_flush_function();
@@ -1475,9 +1489,9 @@ const char *ansi_bar(char *buf, size_t buf_size,
                      double value, double min, double max)
 {
     /* Graceful fallback for NULL or tiny buffers */
-    if (!buf) return "";
+    if (!buf || buf_size == 0) return "";
     if (buf_size < 2) {
-        if (buf_size) buf[0] = '\0';
+        buf[0] = '\0';
         return buf;
     }
 
@@ -1488,10 +1502,10 @@ const char *ansi_bar(char *buf, size_t buf_size,
 
     /* Resolve track character -- default to space for unknown values */
     int tk_idx = (int)track;
-    if (tk_idx < 0 || tk_idx >= (int)(sizeof(BAR_TRACK) / sizeof(BAR_TRACK[0])))
+    if (tk_idx < 0 || tk_idx >= (int)(sizeof(m_bar_track) / sizeof(m_bar_track[0])))
         tk_idx = 0;
-    const char *tk_str = BAR_TRACK[tk_idx].s;
-    int         tk_len = BAR_TRACK[tk_idx].len;
+    const char *tk_str = m_bar_track[tk_idx].s;
+    int         tk_len = m_bar_track[tk_idx].len;
 
     /* Compute fill fraction, clamped to [0.0, 1.0] */
     double fraction;
@@ -1503,20 +1517,20 @@ const char *ansi_bar(char *buf, size_t buf_size,
     if (fraction < 0.0) fraction = 0.0;
     if (fraction > 1.0) fraction = 1.0;
 
-    /* Convert fraction to 1/8-cell units and decompose */
-    int eighths    = (int)(fraction * width * 8 + 0.5);
-    int full_blocks = eighths / 8;
-    int remainder   = eighths % 8;   /* selects partial block 1-7 */
-    int empty       = width - full_blocks - (remainder ? 1 : 0);
+    /* Convert fraction to 1/8-cell units */
+    int eighths     = (int)(fraction * width * 8 + 0.5);
+    int filled_cells = (eighths + 7) / 8;  /* ceil(eighths / 8) */
+    int empty        = width - filled_cells;
 
-    /* Resolve color name to tag string — only emit if both [color] and [/]
+    /* Resolve color name to tag string — only emit if both [color] and [/color]
        fit completely, so we never produce an incomplete tag like "[re" */
     int has_color = 0;
+    size_t clen = 0;
     if (color) {
         const AttrEntry *a = lookup_attr(color, strlen(color));
         if (a && a->fg_code) {
-            size_t clen = strlen(color);
-            size_t need = (clen + 2) + 3;  /* [color] + [/] */
+            clen = strlen(color);
+            size_t need = (clen + 2) + (clen + 3);  /* [color] + [/color] */
             if (out + need <= end) {
                 *out++ = '[';
                 memcpy(out, color, clen); out += clen;
@@ -1526,23 +1540,24 @@ const char *ansi_bar(char *buf, size_t buf_size,
         }
     }
 
-    /* When color is active, reserve 3 bytes for the [/] close tag so that
+    /* When color is active, reserve bytes for [/color] close tag so that
        block-writing loops cannot consume space needed for it. */
-    char *blk_end = has_color ? end - 3 : end;
+    char *blk_end = has_color ? end - (ptrdiff_t)(clen + 3) : end;
 
-    /* Emit full blocks */
-    for (int i = 0; i < full_blocks && out + 3 <= blk_end; i++) {
-        memcpy(out, BAR_FULL, 3); out += 3;
+    /* Emit filled cells: consume eighths left-to-right, one cell at a time */
+    while (eighths > 0 && out + 3 <= blk_end) {
+        int fill = eighths >= 8 ? 8 : eighths;
+        memcpy(out, m_bar_block[fill], 3);
+        out += 3;
+        eighths -= fill;
     }
 
-    /* Emit partial block (1/8 through 7/8) */
-    if (remainder > 0 && out + 3 <= blk_end) {
-        memcpy(out, BAR_PARTIAL[remainder], 3); out += 3;
-    }
-
-    /* Close color tag before empty track */
+    /* Close only the bar's own color, preserving any surrounding color state */
     if (has_color) {
-        memcpy(out, "[/]", 3); out += 3;
+        *out++ = '[';
+        *out++ = '/';
+        memcpy(out, color, clen); out += clen;
+        *out++ = ']';
     }
 
     /* Emit empty track */
