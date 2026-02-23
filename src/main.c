@@ -54,9 +54,7 @@ static void demo(void)
     /* --- Rainbow & gradient --- */
 #if ANSI_PRINT_GRADIENTS
     ansi_puts("[bold]Rainbow & Gradient[/]\n");
-    ansi_puts("  [bold]");
-    ansi_rainbow("System initialization complete");
-    ansi_puts("[/]\n");
+    ansi_puts("  [bold][rainbow]System initialization complete[/rainbow][/]\n");
     ansi_puts("  [gradient red blue]Gradient: red to blue[/gradient]\n\n");
 #endif
 
@@ -124,9 +122,9 @@ static void demo(void)
     ansi_puts("[bold]Bar Graphs[/]\n");
     {
         char bar[128];
-        const char *names[]  = {"CPU", "MEM", "DSK", "NET", "GPU", "SWP"};
+        const char *names[]  = {"light", "med  ", "heavy", "dot  ", "line ", "blank"};
         const char *colors[] = {"green", "cyan", "yellow", "blue", "red", "magenta"};
-        int loads[]          = {73, 45, 92, 18, 100, 15};
+        int loads[]          = {73, 45, 40, 18, 60, 15};
         /* Each bar uses a different track character to showcase the options */
         ansi_bar_track_t tracks[] = {
             ANSI_BAR_LIGHT, ANSI_BAR_MED,  ANSI_BAR_HEAVY,
