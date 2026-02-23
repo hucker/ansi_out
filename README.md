@@ -2,8 +2,8 @@
 
 ![version](https://img.shields.io/badge/version-1.1.1-blue "Library version")
 ![license](https://img.shields.io/badge/license-MIT-green "MIT License")
-![test-full](https://img.shields.io/badge/test--full-140%20passed-brightgreen "All features enabled")
-![test-minimal](https://img.shields.io/badge/test--minimal-57%20passed-brightgreen "All optional features disabled")
+![test-full](https://img.shields.io/badge/test--full-145%20passed-brightgreen "All features enabled")
+![test-minimal](https://img.shields.io/badge/test--minimal-64%20passed-brightgreen "All optional features disabled")
 ![C standard](https://img.shields.io/badge/C-C99-orange "Requires C99 compiler")
 
 A lightweight C library for colored terminal output using
@@ -206,41 +206,95 @@ Or on the command line: `-DANSI_PRINT_MINIMAL`
 
 ### Feature Macros
 
-| Macro                        | Default       | Controls                                            |
-| ---------------------------- | ------------- | --------------------------------------------------- |
-| `ANSI_PRINT_MINIMAL`         | (not defined) | When defined, all features below default to 0       |
-| `ANSI_PRINT_EMOJI`           | 1             | Core emoji shortcodes (21 emoji)                    |
-| `ANSI_PRINT_EXTENDED_EMOJI`  | 1             | Extended emoji set (~130 more)                      |
-| `ANSI_PRINT_EXTENDED_COLORS` | 1             | 12 named colors (orange, pink, etc.)                |
-| `ANSI_PRINT_BRIGHT_COLORS`   | 1             | 8 bright variants (bright_red, etc.)                |
-| `ANSI_PRINT_STYLES`          | 1             | bold, dim, italic, underline, invert, strikethrough |
-| `ANSI_PRINT_GRADIENTS`       | 1             | Rainbow and gradient effects, `ansi_rainbow()`      |
-| `ANSI_PRINT_UNICODE`         | 1             | `:U-XXXX:` codepoint escapes                        |
-| `ANSI_PRINT_BANNER`          | 1             | `ansi_banner()` boxed text output                   |
-| `ANSI_PRINT_WINDOW`          | 1             | `ansi_window_start/line/end()` streaming boxed text |
-| `ANSI_PRINT_BAR`             | 1             | `ansi_bar()` inline horizontal bar graphs           |
+| Feature Flag Macro           | Default           | Controls                                            |
+| ---------------------------- | ----------------- | --------------------------------------------------- |
+| `ANSI_PRINT_MINIMAL`         | (not defined)     | When defined, all features below default to 0       |
+| `ANSI_PRINT_EMOJI`           | 1                 | Core emoji shortcodes (21 emoji)                    |
+| `ANSI_PRINT_EXTENDED_EMOJI`  | 1                 | Extended emoji set (~130 more)                      |
+| `ANSI_PRINT_EXTENDED_COLORS` | 1                 | 12 named colors (orange, pink, etc.)                |
+| `ANSI_PRINT_BRIGHT_COLORS`   | 1                 | 8 bright variants (bright_red, etc.)                |
+| `ANSI_PRINT_STYLES`          | 1                 | bold, dim, italic, underline, invert, strikethrough |
+| `ANSI_PRINT_GRADIENTS`       | 1                 | `[rainbow]` and `[gradient]` tag effects            |
+| `ANSI_PRINT_UNICODE`         | 1                 | `:U-XXXX:` codepoint escapes                        |
+| `ANSI_PRINT_BANNER`          | 1                 | `ansi_banner()` boxed text output                   |
+| `ANSI_PRINT_WINDOW`          | 1                 | `ansi_window_start/line/end()` streaming boxed text |
+| `ANSI_PRINT_BAR`             | 1                 | `ansi_bar()` inline horizontal bar graphs           |
+| `ANSI_PRINT_BOX_STYLE`       | `ANSI_BOX_DOUBLE` | Box-drawing character set for banner/window borders |
+
+#### Box Style Constants
+
+`ANSI_PRINT_BOX_STYLE` selects the box-drawing character set used by
+`ansi_banner()` and `ansi_window_*()` at **compile time**.  The choice is
+baked into the binary with zero runtime cost — only the selected character
+set is compiled in.
+
+```text
+Style          Constant          Value   Sample
+─────────────  ────────────────  ─────   ──────────────
+Light          ANSI_BOX_LIGHT     0      ┌──────┐
+                                         │ text │
+                                         └──────┘
+
+Heavy          ANSI_BOX_HEAVY     1      ┏━━━━━━┓
+                                         ┃ text ┃
+                                         ┗━━━━━━┛
+
+Double (default) ANSI_BOX_DOUBLE  2      ╔══════╗
+                                         ║ text ║
+                                         ╚══════╝
+
+Rounded        ANSI_BOX_ROUNDED   3      ╭──────╮
+                                         │ text │
+                                         ╰──────╯
+```
+
+Configure in `app_cfg.h` (recommended):
+
+```c
+/* app_cfg.h */
+#define ANSI_PRINT_BOX_STYLE  ANSI_BOX_ROUNDED
+```
+
+Or via compiler flag:
+
+```bash
+# Command line
+gcc -DANSI_PRINT_BOX_STYLE=ANSI_BOX_ROUNDED ...
+
+# CMake
+target_compile_definitions(myapp PRIVATE ANSI_PRINT_BOX_STYLE=ANSI_BOX_ROUNDED)
+```
+
+Or define before including the header:
+
+```c
+#define ANSI_PRINT_BOX_STYLE  ANSI_BOX_LIGHT
+#include "ansi_print.h"
+```
 
 ### Flash Impact per Feature
 
 Each row shows the `.text` section size when a single feature flag is enabled on
 top of a minimal build.  Measured with `clang 21 -Os -ffunction-sections
--fdata-sections` on x86-64 using `measure_features.sh`; absolute sizes will vary
-by target architecture but the relative costs are representative.
+-fdata-sections` on x86-64 using `scripts/measure_features.sh`; absolute sizes will vary
+by target architecture but the relative costs are representative.  On 32-bit
+embedded targets, sizes will be slightly smaller due to 4-byte pointers (vs 8),
+particularly RAM usage (~60-70 B vs ~100 B on 64-bit).
 
-| Feature Flag                 | .text    | Delta    | % of Full | Cumul.  | Notes                             |
-| ---------------------------- | -------: | -------: | --------: | ------: | --------------------------------- |
-| *Minimal baseline*           |  3601 B  |      0   |    18.8%  |  18.8%  | 8 colors, `fg:/bg:`, tag parsing  |
-| `ANSI_PRINT_UNICODE`         |  3967 B  | +366 B   |     1.9%  |  20.7%  | `:U-XXXX:` codepoint escapes      |
-| `ANSI_PRINT_BRIGHT_COLORS`   |  4128 B  | +527 B   |     2.7%  |  23.5%  | 8 bright color name entries       |
-| `ANSI_PRINT_STYLES`          |  4208 B  | +607 B   |     3.2%  |  26.6%  | 6 style attributes                |
-| `ANSI_PRINT_EXTENDED_COLORS` |  4427 B  | +826 B   |     4.3%  |  30.9%  | 12 extra color name entries       |
-| `ANSI_PRINT_EMOJI`           |  4550 B  | +949 B   |     4.9%  |  35.9%  | 21 core emoji shortcodes          |
-| `ANSI_PRINT_BAR`             |  4751 B  | +1150 B  |     6.0%  |  41.9%  | Bar graphs with block elements    |
-| `ANSI_PRINT_BANNER`          |  4802 B  | +1201 B  |     6.3%  |  48.1%  | Boxed text with box-drawing chars |
-| `ANSI_PRINT_GRADIENTS`       |  5439 B  | +1838 B  |     9.6%  |  57.7%  | Rainbow + gradient (24-bit color) |
-| `ANSI_PRINT_WINDOW`          |  5963 B  | +2362 B  |    12.3%  |  70.0%  | Streaming boxed window output     |
-| `ANSI_PRINT_EXTENDED_EMOJI`  |  9625 B  | +6024 B  |    31.4%  | 101.5%  | +130 emoji (requires `EMOJI`)     |
-| *Full build (all enabled)*   | 19172 B  |+15571 B  |       —   | 100.0%  | Everything                        |
+| Feature Flag                 |   .text |    Delta | % of Full | Cumul. | Notes                             |
+| ---------------------------- | ------: | -------: | --------: | -----: | --------------------------------- |
+| *Minimal baseline*           |  3682 B |        0 |     19.3% |  19.3% | 8 colors, `fg:/bg:`, tag parsing  |
+| `ANSI_PRINT_UNICODE`         |  4087 B |   +405 B |      2.1% |  21.4% | `:U-XXXX:` codepoint escapes      |
+| `ANSI_PRINT_BRIGHT_COLORS`   |  4209 B |   +527 B |      2.8% |  24.2% | 8 bright color name entries       |
+| `ANSI_PRINT_STYLES`          |  4289 B |   +607 B |      3.2% |  27.3% | 6 style attributes                |
+| `ANSI_PRINT_EXTENDED_COLORS` |  4508 B |   +826 B |      4.3% |  31.7% | 12 extra color name entries       |
+| `ANSI_PRINT_EMOJI`           |  4666 B |   +984 B |      5.2% |  36.8% | 21 core emoji shortcodes          |
+| `ANSI_PRINT_BAR`             |  4833 B |  +1151 B |      6.0% |  42.9% | Bar graphs with block elements    |
+| `ANSI_PRINT_BANNER`          |  4883 B |  +1201 B |      6.3% |  49.2% | Boxed text with box-drawing chars |
+| `ANSI_PRINT_GRADIENTS`       |  5675 B |  +1993 B |     10.4% |  59.6% | Rainbow + gradient (24-bit color) |
+| `ANSI_PRINT_WINDOW`          |  6139 B |  +2457 B |     12.9% |  72.5% | Streaming boxed window output     |
+| `ANSI_PRINT_EXTENDED_EMOJI`  |  9741 B |  +6059 B |     31.8% | 104.2% | +130 emoji (requires `EMOJI`)     |
+| *Full build (all enabled)*   | 19082 B | +15400 B |         — | 100.0% | Everything                        |
 
 > Cumulative exceeds 100% because features share some common code that is
 > counted once in the full build but appears in multiple individual deltas.
@@ -393,9 +447,6 @@ Each visible character cycles through a 21-step color palette:
 ```c
 ansi_print("[rainbow]Hello, Rainbow![/]\n");
 ansi_print("[bold rainbow]Bold rainbow[/]\n");
-
-/* Or use the dedicated function: */
-ansi_rainbow("Direct rainbow output\n");
 ```
 
 ### Gradient
@@ -469,7 +520,8 @@ pass through as literal text.
 
 ## Banner (ANSI_PRINT_BANNER)
 
-`ansi_banner()` draws a Unicode double-line box around printf-formatted text,
+`ansi_banner()` draws a Unicode box border around printf-formatted text
+(style selected by `ANSI_PRINT_BOX_STYLE`, default: double-line),
 with the border and text rendered in a named color. All text is formatted into
 the shared buffer in a single call, so the total content is limited by the
 buffer size passed to `ansi_init()`. Because the full text is available up
@@ -683,9 +735,6 @@ const char *ansi_format(const char *fmt, ...);
 /* Rich-style output for static strings (no printf overhead) */
 void ansi_puts(const char *s);
 
-/* Direct rainbow output (ANSI_PRINT_GRADIENTS only) */
-void ansi_rainbow(const char *s);
-
 /* Colored banner box around text (ANSI_PRINT_BANNER only) */
 void ansi_banner(const char *color, int width, ansi_align_t align,
                  const char *fmt, ...);
@@ -789,14 +838,14 @@ Build config: EMOJI=1 EXTENDED_EMOJI=1 EXTENDED_COLORS=1 BRIGHT_COLORS=1 STYLES=
 test/test_cprint.c:883:test_plain_text_no_tags:PASS
 test/test_cprint.c:884:test_printf_formatting:PASS
 ...
-140 Tests 0 Failures 0 Ignored
+145 Tests 0 Failures 0 Ignored
 
 $ make test-minimal
 >> build/test_cprint_minimal
 Build config: EMOJI=0 EXTENDED_EMOJI=0 EXTENDED_COLORS=0 BRIGHT_COLORS=0 STYLES=0 GRADIENTS=0 UNICODE=0 BANNER=0 WINDOW=0 BAR=0
 test/test_cprint.c:883:test_plain_text_no_tags:PASS
 ...
-57 Tests 0 Failures 0 Ignored
+64 Tests 0 Failures 0 Ignored
 ```
 
 The minimal build runs fewer tests (features compiled out) plus additional
