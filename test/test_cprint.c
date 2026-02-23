@@ -206,8 +206,8 @@ void test_null_putc_suppresses_output(void)
 {
     ansi_init(NULL, NULL, fmt_buf, sizeof(fmt_buf));
     ansi_print("[red]should not crash[/]");
-    /* No crash = pass; output goes to noop */
-    TEST_ASSERT_TRUE(1);
+    /* NULL putc means nothing reaches our capture buffer */
+    TEST_ASSERT_EQUAL_STRING("", capture_buf);
 }
 
 /* ------------------------------------------------------------------ */
@@ -221,27 +221,6 @@ void test_bold_style(void)
     TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[1m"));  /* bold on */
     TEST_ASSERT_NOT_NULL(strstr(capture_buf, "text"));
     TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[0m"));  /* reset */
-}
-#endif
-
-/* ------------------------------------------------------------------ */
-/* Gradient / rainbow tests                                           */
-/* ------------------------------------------------------------------ */
-
-#if ANSI_PRINT_GRADIENTS
-void test_rainbow_no_crash(void)
-{
-    ansi_rainbow("Rainbow!");
-    /* Each char is wrapped in ANSI codes so the literal string won't appear
-       contiguously.  Just verify we got output containing 'R'. */
-    TEST_ASSERT_NOT_NULL(strchr(capture_buf, 'R'));
-}
-
-void test_rainbow_disabled(void)
-{
-    ansi_set_enabled(0);
-    ansi_rainbow("Plain");
-    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "Plain"));
 }
 #endif
 
@@ -479,6 +458,26 @@ void test_format_no_buf(void)
     TEST_ASSERT_NULL(r);
 }
 
+void test_format_preserves_tags(void)
+{
+    /* ansi_format is a pure formatter — tags are NOT processed,
+       they pass through as literal text for later use by ansi_print */
+    const char *r = ansi_format("[red]error %d[/]", 42);
+    TEST_ASSERT_NOT_NULL(r);
+    TEST_ASSERT_EQUAL_STRING("[red]error 42[/]", r);
+}
+
+void test_format_then_print(void)
+{
+    /* Verify the intended workflow: format → print processes tags */
+    const char *r = ansi_format("[red]val=%d[/]", 42);
+    TEST_ASSERT_NOT_NULL(r);
+    ansi_print("%s", r);
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[31m"));  /* red */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "val=42"));
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[0m"));   /* reset */
+}
+
 /* ------------------------------------------------------------------ */
 /* Edge-case / NULL tests                                             */
 /* ------------------------------------------------------------------ */
@@ -664,9 +663,12 @@ void test_color_and_style_combined(void)
 void test_gradient_span(void)
 {
     ansi_print("[gradient red blue]fade[/gradient]");
-    /* Should contain RGB true-color codes */
+    /* Should contain RGB true-color codes and all content chars */
     TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[38;2;"));
     TEST_ASSERT_NOT_NULL(strstr(capture_buf, "f"));
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "a"));
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "d"));
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "e"));
 }
 
 void test_gradient_disabled(void)
@@ -696,19 +698,6 @@ void test_rainbow_span_disabled(void)
     ansi_set_enabled(0);
     ansi_print("[rainbow]colors[/rainbow]");
     TEST_ASSERT_EQUAL_STRING("colors", capture_buf);
-}
-
-void test_rainbow_null(void)
-{
-    ansi_rainbow(NULL);
-    TEST_ASSERT_EQUAL_STRING("", capture_buf);
-}
-
-void test_rainbow_spaces_only(void)
-{
-    ansi_rainbow("   ");
-    /* Spaces are emitted but no color codes per-character */
-    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "   "));
 }
 
 void test_gradient_close_reapplies(void)
@@ -762,7 +751,8 @@ void test_count_effect_skips_tags(void)
 {
     /* Tags inside rainbow are skipped in char count but consumed */
     ansi_print("[rainbow]ab[/rainbow]");
-    /* Two visible chars get rainbow coloring */
+    /* Two visible chars get rainbow coloring — 256-color codes present */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[38;5;"));
     TEST_ASSERT_NOT_NULL(strstr(capture_buf, "a"));
     TEST_ASSERT_NOT_NULL(strstr(capture_buf, "b"));
 }
@@ -807,6 +797,18 @@ void test_unicode_zero(void)
     TEST_ASSERT_EQUAL_STRING(":U-0:", capture_buf);
 }
 
+void test_unicode_surrogate(void)
+{
+    /* U+D800 (leading surrogate) is invalid UTF-8 — pass through literally */
+    ansi_set_enabled(0);
+    ansi_print(":U-D800:");
+    TEST_ASSERT_EQUAL_STRING(":U-D800:", capture_buf);
+    /* U+DFFF (trailing surrogate) likewise */
+    capture_reset();
+    ansi_print(":U-DFFF:");
+    TEST_ASSERT_EQUAL_STRING(":U-DFFF:", capture_buf);
+}
+
 void test_unicode_too_long(void)
 {
     /* More than 6 hex digits — pass through literally */
@@ -832,7 +834,8 @@ void test_on_with_trailing_spaces(void)
 {
     ansi_print("[white on  red ]text[/]");
     /* Should still parse "on" and set bg to red (with trimming) */
-    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[37m"));   /* white */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[37m"));   /* white fg */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[41m"));   /* red bg */
     TEST_ASSERT_NOT_NULL(strstr(capture_buf, "text"));
 }
 
@@ -850,6 +853,54 @@ void test_unclosed_bracket(void)
     ansi_set_enabled(0);
     ansi_print("[broken");
     TEST_ASSERT_EQUAL_STRING("[broken", capture_buf);
+}
+
+void test_bare_reset_no_open(void)
+{
+    /* [/] without any preceding open tag — should emit reset harmlessly */
+    ansi_print("[/]hello");
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[0m"));
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "hello"));
+}
+
+void test_bare_reset_disabled(void)
+{
+    /* [/] with color disabled — tag stripped, just text */
+    ansi_set_enabled(0);
+    ansi_print("[/]hello");
+    TEST_ASSERT_EQUAL_STRING("hello", capture_buf);
+}
+
+void test_nested_colors(void)
+{
+    /* Library uses flat state, not a nesting stack.
+       [/green] clears fg to default, it does NOT restore [red]. */
+    ansi_print("[red][green]x[/green]y[/red]");
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[31m"));   /* red */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[32m"));   /* green */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "x"));
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "y"));
+    /* After [/green], a reset is emitted (clearing green) */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[0m"));
+}
+
+void test_nested_colors_disabled(void)
+{
+    ansi_set_enabled(0);
+    ansi_print("[red][green]x[/green]y[/red]");
+    TEST_ASSERT_EQUAL_STRING("xy", capture_buf);
+}
+
+void test_set_fg_and_bg_disabled(void)
+{
+    /* Both set_fg and set_bg with color disabled — no ANSI codes in output */
+    ansi_set_enabled(0);
+    ansi_set_fg("red");
+    ansi_set_bg("blue");
+    capture_reset();
+    ansi_print("plain text");
+    TEST_ASSERT_EQUAL_STRING("plain text", capture_buf);
+    TEST_ASSERT_NULL(strstr(capture_buf, "\x1b["));
 }
 
 /* ------------------------------------------------------------------ */
@@ -897,7 +948,7 @@ void test_minimal_bar_not_available(void)
 #endif
 
 /* ------------------------------------------------------------------ */
-/* Banner tests                                                       */
+/* Banner tests (box bytes assume default ANSI_PRINT_BOX_STYLE=DOUBLE)*/
 /* ------------------------------------------------------------------ */
 
 #if ANSI_PRINT_BANNER
@@ -1015,7 +1066,7 @@ void test_banner_align_right(void)
 #endif /* ANSI_PRINT_BANNER */
 
 /* ------------------------------------------------------------------ */
-/* Window tests                                                       */
+/* Window tests (box bytes assume default ANSI_PRINT_BOX_STYLE=DOUBLE)*/
 /* ------------------------------------------------------------------ */
 
 #if ANSI_PRINT_WINDOW
@@ -1228,9 +1279,9 @@ void test_bar_with_color(void)
 {
     char bar[128];
     ansi_bar(bar, sizeof(bar), "red", 3, ANSI_BAR_LIGHT, 100, 0, 100);
-    /* Should start with [red] and have [/] after blocks */
+    /* Should start with [red] and have [/red] after blocks */
     TEST_ASSERT_NOT_NULL(strstr(bar, "[red]"));
-    TEST_ASSERT_NOT_NULL(strstr(bar, "[/]"));
+    TEST_ASSERT_NOT_NULL(strstr(bar, "[/red]"));
     TEST_ASSERT_NOT_NULL(strstr(bar, "\xe2\x96\x88"));
 }
 
@@ -1396,16 +1447,25 @@ void test_bar_tiny_buf(void)
     TEST_ASSERT_EQUAL_STRING("", bar);
 }
 
+void test_bar_zero_buf(void)
+{
+    /* buf_size=0: should return "" (static), not touch the buffer */
+    char bar[1] = { 'X' };
+    const char *r = ansi_bar(bar, 0, NULL, 5, ANSI_BAR_LIGHT, 50, 0, 100);
+    TEST_ASSERT_EQUAL_STRING("", r);
+    TEST_ASSERT_EQUAL_CHAR('X', bar[0]);  /* buffer untouched */
+}
+
 void test_bar_color_tight_buf(void)
 {
-    /* Buffer too small for [red]...[/] — should omit color tags entirely
+    /* Buffer too small for [red]...[/red] — should omit color tags entirely
        rather than emitting an incomplete tag like "[re" */
-    char bar[16];  /* only room for a few blocks, not [red]...[/] overhead */
+    char bar[16];  /* only room for a few blocks, not [red]...[/red] overhead */
     ansi_bar(bar, sizeof(bar), "red", 3, ANSI_BAR_LIGHT, 100, 0, 100);
     /* Should not contain an incomplete open bracket without close */
     if (strstr(bar, "[red]")) {
         /* If color tag fits, close tag must also be present */
-        TEST_ASSERT_NOT_NULL(strstr(bar, "[/]"));
+        TEST_ASSERT_NOT_NULL(strstr(bar, "[/red]"));
     } else {
         /* Color tag omitted entirely — no stray brackets */
         TEST_ASSERT_NULL(strchr(bar, '['));
@@ -1449,23 +1509,32 @@ void test_bar_in_window_truncate(void)
 void test_window_utf8_counting(void)
 {
     char bar[128];
-    /* Verify UTF-8 multi-byte chars are counted as 1 visible char, not 3 */
+    /* Verify UTF-8 multi-byte chars are counted as 1 visible char, not 3.
+       A 5-char bar in a width-10 window should get 5 spaces of right padding,
+       same as 5 ASCII characters would. */
     ansi_set_enabled(0);
+
+    /* Reference: ASCII "hello" (5 chars) in width 10 → "hello     " */
     ansi_window_start(NULL, 10, ANSI_ALIGN_LEFT, NULL);
-    /* "hello" is 5 ASCII chars */
     ansi_window_line(ANSI_ALIGN_LEFT, "hello");
     ansi_window_end();
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "hello     "));
     capture_reset();
 
-    /* Now test with UTF-8 block chars (each 3 bytes but 1 visible) */
+    /* Test: 5 full-block chars (each 3 bytes) in width 10 → blocks + 5 spaces */
     ansi_window_start(NULL, 10, ANSI_ALIGN_LEFT, NULL);
     ansi_window_line(ANSI_ALIGN_LEFT, "%s",
                      ansi_bar(bar, sizeof(bar), NULL, 5,
                               ANSI_BAR_LIGHT, 100, 0, 100));
     ansi_window_end();
-    /* Bar is 5 visible chars in width 10: should have 5 chars of padding */
-    /* Check borders are present (they wouldn't be correct if counting was wrong) */
-    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x95\x91"));
+    /* After the 5 block chars (15 bytes) there should be 5 spaces of padding.
+       If UTF-8 counting were broken, the bar would be miscounted as 15 visible
+       chars and no padding would appear. */
+    const char *blocks = strstr(capture_buf, "\xe2\x96\x88");
+    TEST_ASSERT_NOT_NULL(blocks);
+    /* Skip past 5 block chars (5 * 3 bytes) and verify padding follows */
+    const char *after_blocks = blocks + 15;
+    TEST_ASSERT_EQUAL_MEMORY("     ", after_blocks, 5);
 }
 #endif /* ANSI_PRINT_WINDOW */
 
@@ -1644,6 +1713,8 @@ int main(void)
     RUN_TEST(test_format_returns_buffer);
     RUN_TEST(test_format_null_fmt);
     RUN_TEST(test_format_no_buf);
+    RUN_TEST(test_format_preserves_tags);
+    RUN_TEST(test_format_then_print);
 
     /* Edge cases */
     RUN_TEST(test_puts_null);
@@ -1669,6 +1740,11 @@ int main(void)
     RUN_TEST(test_on_with_trailing_spaces);
     RUN_TEST(test_empty_tag_ignored);
     RUN_TEST(test_unclosed_bracket);
+    RUN_TEST(test_bare_reset_no_open);
+    RUN_TEST(test_bare_reset_disabled);
+    RUN_TEST(test_nested_colors);
+    RUN_TEST(test_nested_colors_disabled);
+    RUN_TEST(test_set_fg_and_bg_disabled);
 
     /* Default fg/bg */
     RUN_TEST(test_set_fg_applies_color);
@@ -1739,6 +1815,7 @@ int main(void)
     RUN_TEST(test_bar_track_line);
     RUN_TEST(test_bar_null_buf);
     RUN_TEST(test_bar_tiny_buf);
+    RUN_TEST(test_bar_zero_buf);
     RUN_TEST(test_bar_color_tight_buf);
 #if ANSI_PRINT_WINDOW
     RUN_TEST(test_bar_in_window);
@@ -1756,15 +1833,11 @@ int main(void)
 #endif
 
 #if ANSI_PRINT_GRADIENTS
-    RUN_TEST(test_rainbow_no_crash);
-    RUN_TEST(test_rainbow_disabled);
     RUN_TEST(test_gradient_span);
     RUN_TEST(test_gradient_disabled);
     RUN_TEST(test_gradient_bad_colors);
     RUN_TEST(test_rainbow_span);
     RUN_TEST(test_rainbow_span_disabled);
-    RUN_TEST(test_rainbow_null);
-    RUN_TEST(test_rainbow_spaces_only);
     RUN_TEST(test_gradient_close_reapplies);
     RUN_TEST(test_count_effect_escaped_brackets);
     RUN_TEST(test_count_effect_skips_tags);
@@ -1806,6 +1879,7 @@ int main(void)
     RUN_TEST(test_unicode_2byte);
     RUN_TEST(test_unicode_out_of_range);
     RUN_TEST(test_unicode_zero);
+    RUN_TEST(test_unicode_surrogate);
     RUN_TEST(test_unicode_too_long);
     RUN_TEST(test_unicode_bare_prefix);
 #endif
