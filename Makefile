@@ -1,4 +1,4 @@
-CC      = gcc
+CC      = clang
 CFLAGS  = -Wall -Wextra -std=c99 -I src -I test/unity
 
 # Work around MinGW gcc using Windows TEMP dir (which may lack write permission)
