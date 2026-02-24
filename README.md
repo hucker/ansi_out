@@ -281,7 +281,7 @@ by target architecture but the relative costs are representative.  On 32-bit
 embedded targets, sizes will be slightly smaller due to 4-byte pointers (vs 8),
 particularly RAM usage (~60-70 B vs ~100 B on 64-bit).
 
-| Feature Flag                 |   .text |    Delta | % of Full | Cumul. | Notes                             |
+| Feature Flag                 |   .text |    Delta | % of Full |   CSum | Notes                             |
 | ---------------------------- | ------: | -------: | --------: | -----: | --------------------------------- |
 | *Minimal baseline*           |  3682 B |        0 |     19.3% |  19.3% | 8 colors, `fg:/bg:`, tag parsing  |
 | `ANSI_PRINT_UNICODE`         |  4087 B |   +405 B |      2.1% |  21.4% | `:U-XXXX:` codepoint escapes      |
