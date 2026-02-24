@@ -196,6 +196,7 @@ static void tui_demo(void)
     static const char *status_colors[] = {
         "green", "cyan", "yellow", "red", "cyan", "green",
     };
+    static const double vlt_vals[] = { 3.30, 3.28, 3.25, 3.15, 3.22, 3.31 };
     static const int check_states[] = { 1, 1, 0, 0, 1, 1 };
     static const char *alert_levels[] = {
         "[green]OK[/]", "[green]OK[/]", "[yellow]WARN[/]",
@@ -257,26 +258,23 @@ static void tui_demo(void)
     /* Labels inside sensors frame */
     static tui_label_state_t cpu_label_st, mem_label_st, tmp_label_st;
     static const tui_label_t cpu_label = {
-        .row = 1, .col = 1, .width = 10,
-        .border = ANSI_TUI_BORDER,
-        .label = "CPU", .color = "cyan", .state = &cpu_label_st,
-        .parent = &sensors_frame
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_BORDER,
+                   .color = "cyan", .parent = &sensors_frame },
+        .width = 10, .label = "CPU", .state = &cpu_label_st
     };
     tui_label_init(&cpu_label);
 
     static const tui_label_t mem_label = {
-        .row = 4, .col = 1, .width = 10,  /* tui_below(&cpu_label) */
-        .border = ANSI_TUI_BORDER,
-        .label = "MEM", .color = "cyan", .state = &mem_label_st,
-        .parent = &sensors_frame
+        .place = { .row = 4, .col = 1, .border = ANSI_TUI_BORDER,
+                   .color = "cyan", .parent = &sensors_frame },
+        .width = 10, .label = "MEM", .state = &mem_label_st
     };
     tui_label_init(&mem_label);
 
     static const tui_label_t tmp_label = {
-        .row = 7, .col = 1, .width = 10,  /* tui_below(&mem_label) */
-        .border = ANSI_TUI_BORDER,
-        .label = "TMP", .color = "cyan", .state = &tmp_label_st,
-        .parent = &sensors_frame
+        .place = { .row = 7, .col = 1, .border = ANSI_TUI_BORDER,
+                   .color = "cyan", .parent = &sensors_frame },
+        .width = 10, .label = "TMP", .state = &tmp_label_st
     };
     tui_label_init(&tmp_label);
 
@@ -285,72 +283,94 @@ static void tui_demo(void)
     static char cpu_bar_buf[256], mem_bar_buf[256];
     static tui_bar_state_t cpu_bar_st, mem_bar_st;
     static const tui_bar_t cpu_bar = {
-        .row = 1, .col = 1, .bar_width = 35,
-        .border = ANSI_TUI_BORDER,
-        .label = "CPU ", .color = "green",
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_BORDER,
+                   .color = "green", .parent = &monitors_frame },
+        .bar_width = 35, .label = "CPU ",
         .track = ANSI_BAR_LIGHT,
         .bar_buf = cpu_bar_buf, .bar_buf_size = sizeof(cpu_bar_buf),
-        .state = &cpu_bar_st, .parent = &monitors_frame
+        .state = &cpu_bar_st
     };
     tui_bar_init(&cpu_bar);
 
     static const tui_bar_t mem_bar = {
-        .row = 5, .col = 1, .bar_width = 35,
-        .border = ANSI_TUI_BORDER,
-        .label = "MEM ", .color = "yellow",
+        .place = { .row = 5, .col = 1, .border = ANSI_TUI_BORDER,
+                   .color = "yellow", .parent = &monitors_frame },
+        .bar_width = 35, .label = "MEM ",
         .track = ANSI_BAR_LIGHT,
         .bar_buf = mem_bar_buf, .bar_buf_size = sizeof(mem_bar_buf),
-        .state = &mem_bar_st, .parent = &monitors_frame
+        .state = &mem_bar_st
     };
     tui_bar_init(&mem_bar);
 #endif
 
+    /* Metrics inside monitors frame */
+    static tui_metric_state_t tmp_metric_st, vlt_metric_st;
+    static const tui_metric_t tmp_metric = {
+        .place = { .row = 9, .col = 1, .border = ANSI_TUI_BORDER,
+                   .color = "green", .parent = &monitors_frame },
+        .width = 16, .title = "TEMP", .fmt = "%5.1f \xc2\xb0""F",
+        .color_lo = "blue", .color_hi = "red",
+        .thresh_lo = 76.0, .thresh_hi = 82.0,
+        .state = &tmp_metric_st
+    };
+    tui_metric_init(&tmp_metric);
+
+    static const tui_metric_t vlt_metric = {
+        .place = { .row = 9, .col = 22, .border = ANSI_TUI_BORDER,
+                   .color = "green", .parent = &monitors_frame },
+        .width = 16, .title = "VDD_3V3", .fmt = "%5.3f V",
+        .color_lo = "red", .color_hi = "red",
+        .thresh_lo = 3.20, .thresh_hi = 3.40,
+        .state = &vlt_metric_st
+    };
+    tui_metric_init(&vlt_metric);
+
     /* Check inside system frame */
     static tui_check_state_t sys_check_st;
     static const tui_check_t sys_check = {
-        .row = 1, .col = 1, .width = 0,
-        .border = ANSI_TUI_BORDER,
-        .label = "System OK", .color = "green",
-        .state = &sys_check_st, .parent = &system_frame
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_BORDER,
+                   .color = "green", .parent = &system_frame },
+        .width = 0, .label = "System OK", .state = &sys_check_st
     };
     tui_check_init(&sys_check, 1);
 
     /* Status inside system frame */
     tui_status_t sys_status = {
-        .row = 4, .col = 1, .width = 36,
-        .border = ANSI_TUI_BORDER, .color = "green",
-        .parent = &system_frame
+        .place = { .row = 4, .col = 1, .border = ANSI_TUI_BORDER,
+                   .color = "green", .parent = &system_frame },
+        .width = 36
     };
     tui_status_init(&sys_status);
 
     /* Label + status inside alerts frame */
     static tui_label_state_t alert_label_st;
     static const tui_label_t alert_label = {
-        .row = 1, .col = 1, .width = 10,
-        .border = ANSI_TUI_BORDER,
-        .label = "Level", .color = "red", .state = &alert_label_st,
-        .parent = &alerts_frame
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_BORDER,
+                   .color = "red", .parent = &alerts_frame },
+        .width = 10, .label = "Level", .state = &alert_label_st
     };
     tui_label_init(&alert_label);
 
     tui_status_t alert_status = {
-        .row = 4, .col = 1, .width = 36,
-        .border = ANSI_TUI_BORDER, .color = "red",
-        .parent = &alerts_frame
+        .place = { .row = 4, .col = 1, .border = ANSI_TUI_BORDER,
+                   .color = "red", .parent = &alerts_frame },
+        .width = 36
     };
     tui_status_init(&alert_status);
 
     /* Footer text widgets inside outer frame */
     static const tui_text_t footer_text = {
-        .row = 27, .col = 1, .width = -1,
-        .border = ANSI_TUI_NO_BORDER, .color = NULL, .parent = &outer_frame
+        .place = { .row = 27, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = NULL, .parent = &outer_frame },
+        .width = -1
     };
     tui_text_init(&footer_text);
     tui_text_update(&footer_text, "[dim]Live update demo — 5 seconds[/]");
 
     static const tui_text_t tick_text = {
-        .row = 27, .col = 85, .width = 10,
-        .border = ANSI_TUI_NO_BORDER, .color = NULL, .parent = &outer_frame
+        .place = { .row = 27, .col = 85, .border = ANSI_TUI_NO_BORDER,
+                   .color = NULL, .parent = &outer_frame },
+        .width = 10
     };
     tui_text_init(&tick_text);
 
@@ -371,13 +391,16 @@ static void tui_demo(void)
         tui_label_update(&tmp_label, "[red]%.1f C[/]", tmp_vals[i]);
 
 #if ANSI_PRINT_BAR
-        tui_bar_update(&cpu_bar, (double)cpu_vals[i], 0.0, 100.0);
-        tui_bar_update(&mem_bar, (double)mem_vals[i], 0.0, 100.0);
+        tui_bar_update(&cpu_bar, (double)cpu_vals[i], 0.0, 100.0, 1);
+        tui_bar_update(&mem_bar, (double)mem_vals[i], 0.0, 100.0, 1);
 #endif
 
-        tui_check_update(&sys_check, check_states[i]);
+        tui_metric_update(&tmp_metric, tmp_vals[i], 1);
+        tui_metric_update(&vlt_metric, vlt_vals[i], 1);
 
-        sys_status.color = status_colors[i];
+        tui_check_update(&sys_check, check_states[i], 1);
+
+        sys_status.place.color = status_colors[i];
         tui_status_init(&sys_status);
         tui_status_update(&sys_status, "%s", status_msgs[i]);
 

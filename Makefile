@@ -49,14 +49,17 @@ test: $(TEST_BINS)
 	@echo "--- All tests passed ---"
 
 # Build and run tests with all features disabled
-test-minimal: $(BUILD_DIR)/test_cprint_minimal
+test-minimal: $(BUILD_DIR)/test_cprint_minimal $(BUILD_DIR)/test_tui_minimal
 	@echo "--- Running minimal tests ---"
-	@echo ""; echo ">> $<"; $< || exit 1
+	@for t in $^; do echo ""; echo ">> $$t"; $$t || exit 1; done
 	@echo ""
 	@echo "--- Minimal tests passed ---"
 
 $(BUILD_DIR)/test_cprint_minimal: $(TEST_DIR)/test_cprint.c $(SRC) $(UNITY_SRC) $(HDR) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(MINIMAL_FLAGS) -o $@ $(TEST_DIR)/test_cprint.c $(SRC) $(UNITY_SRC)
+
+$(BUILD_DIR)/test_tui_minimal: $(TEST_DIR)/test_tui.c $(SRC) $(UNITY_SRC) $(HDR) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(MINIMAL_FLAGS) -o $@ $(TEST_DIR)/test_tui.c $(SRC) $(UNITY_SRC)
 
 # Code coverage (full + minimal builds merged)
 COV_DIR = $(BUILD_DIR)/coverage

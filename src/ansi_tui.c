@@ -15,10 +15,32 @@
 #include <string.h>
 
 /* ------------------------------------------------------------------ */
+/* Internal helper guard macros                                        */
+/* Any TUI widget compiled in (for shared drawing primitives).         */
+/* ------------------------------------------------------------------ */
+
+#define ANSI_TUI_ANY_ (ANSI_TUI_FRAME || ANSI_TUI_LABEL || ANSI_TUI_BAR || \
+                        ANSI_TUI_STATUS || ANSI_TUI_TEXT || ANSI_TUI_CHECK || \
+                        ANSI_TUI_METRIC)
+
+/* Widgets that use tui_widget_goto() (all content widgets except metric) */
+#define ANSI_TUI_GOTO_ (ANSI_TUI_LABEL || ANSI_TUI_BAR || \
+                         ANSI_TUI_STATUS || ANSI_TUI_TEXT || ANSI_TUI_CHECK)
+
+/* Widgets that use tui_pad() */
+#define ANSI_TUI_PAD_ (ANSI_TUI_LABEL || ANSI_TUI_STATUS || \
+                        ANSI_TUI_TEXT || ANSI_TUI_METRIC)
+
+/* Widgets that use tui_center_col() */
+#define ANSI_TUI_CENTER_ (ANSI_TUI_TEXT || ANSI_TUI_STATUS || ANSI_TUI_METRIC)
+
+/* ------------------------------------------------------------------ */
 /* Box-drawing characters (duplicated from ansi_print.c)               */
 /* The BOX_* macros in ansi_print.c are file-scoped, so the TUI layer */
 /* defines its own set using the same ANSI_PRINT_BOX_STYLE flag.      */
 /* ------------------------------------------------------------------ */
+
+#if ANSI_TUI_ANY_
 
 #if ANSI_PRINT_BOX_STYLE == ANSI_BOX_LIGHT
 #define TUI_TL  "\xe2\x94\x8c"  /* U+250C  ┌ */
@@ -52,6 +74,8 @@
 #error "Unknown ANSI_PRINT_BOX_STYLE value"
 #endif
 
+#endif /* ANSI_TUI_ANY_ */
+
 /* ------------------------------------------------------------------ */
 /* Screen helpers                                                      */
 /* ------------------------------------------------------------------ */
@@ -79,8 +103,10 @@ void tui_cursor_show(void)
 }
 
 /* ------------------------------------------------------------------ */
-/* Internal helpers                                                    */
+/* Internal helpers — shared drawing primitives (any widget)            */
 /* ------------------------------------------------------------------ */
+
+#if ANSI_TUI_ANY_
 
 /** Build a horizontal run of box-drawing characters into p.
  *  Returns the number of bytes written (not including NUL). */
@@ -96,11 +122,20 @@ static int tui_fill_horz(char *p, size_t avail, int count)
 }
 
 /** Resolve a widget's local (row,col) to absolute screen coordinates
- *  by walking the parent frame chain.  NULL parent = no offset. */
+ *  by walking the parent frame chain.  NULL parent = no offset.
+ *  Negative row/col count from the end of the parent's interior:
+ *  -1 = last interior position, -2 = second-to-last, etc. */
 static void tui_resolve(const tui_frame_t *parent, int row, int col,
                          int *abs_row, int *abs_col)
 {
     while (parent) {
+        /* Negative coords count from the end of the parent's interior.
+         * height - 2 = interior rows (minus top & bottom border).
+         * width  - 4 = interior cols (minus left/right border + padding).
+         * + 1 converts from 0-based "from-end" to 1-based position. */
+        if (row < 0) row += (parent->height - 2) + 1;
+        if (col < 0) col += (parent->width  - 4) + 1;
+
         row += parent->row;
         col += parent->col + 1;
         parent = parent->parent;
@@ -179,6 +214,14 @@ static void tui_draw_border(int row, int col, int iw, int ih,
     ansi_puts(buf);
 }
 
+#endif /* ANSI_TUI_ANY_ */
+
+/* ------------------------------------------------------------------ */
+/* Internal helpers — content widget positioning                       */
+/* ------------------------------------------------------------------ */
+
+#if ANSI_TUI_GOTO_
+
 /** Compute interior column offset for a bordered widget.
  *  Border adds "║ " = 2 columns of offset. */
 static int tui_interior_col(tui_border_t border, int col)
@@ -208,6 +251,42 @@ static void tui_widget_goto(const tui_frame_t *parent, int row, int col,
     if (out_ic) *out_ic = ic;
 }
 
+/** Placement-aware wrapper for tui_widget_goto().
+ *  @param col  Column override (may differ from p->col after centering). */
+static void tui_place_goto(const tui_placement_t *p, int col,
+                            int *out_ir, int *out_ic)
+{
+    tui_widget_goto(p->parent, p->row, col, p->border, out_ir, out_ic);
+}
+
+/** Resolve position, draw border (if requested), and goto interior.
+ *  Consolidates the resolve + draw_border + goto sequence shared by
+ *  all content-widget init and enable functions.
+ *  @param col   Column override (may differ from p->col after centering).
+ *  @param iw    Interior width for the border box.
+ *  @param color Border/content color, or NULL. */
+static void tui_widget_chrome(const tui_placement_t *p, int col, int iw,
+                               const char *color, int *out_ir, int *out_ic)
+{
+    int ar, ac;
+    tui_resolve(p->parent, p->row, col, &ar, &ac);
+    if (p->border == ANSI_TUI_BORDER)
+        tui_draw_border(ar, ac, iw, 1, color, 1);
+    int ir = tui_interior_row(p->border, ar);
+    int ic = tui_interior_col(p->border, ac);
+    tui_goto(ir, ic);
+    if (out_ir) *out_ir = ir;
+    if (out_ic) *out_ic = ic;
+}
+
+#endif /* ANSI_TUI_GOTO_ */
+
+/* ------------------------------------------------------------------ */
+/* Internal helpers — padding and centering                            */
+/* ------------------------------------------------------------------ */
+
+#if ANSI_TUI_PAD_
+
 /** Emit n spaces at the current cursor position. */
 static void tui_pad(int n)
 {
@@ -215,9 +294,55 @@ static void tui_pad(int n)
     ansi_print("%*s", n, "");
 }
 
+#endif /* ANSI_TUI_PAD_ */
+
+#if ANSI_TUI_CENTER_
+
+/** Resolve col = 0 (center sentinel) to a centered column within the
+ *  parent's interior.  Requires knowing the widget's interior width.
+ *  Returns col unchanged if it is not 0 or parent is NULL. */
+static int tui_center_col(int col, const tui_frame_t *parent,
+                           int iw, tui_border_t border)
+{
+    if (col != 0 || !parent) return col;
+    /* parent interior width (minus left/right border + padding) */
+    int piw = parent->width - 4;
+    /* total occupied columns including widget border overhead */
+    int total = iw + (border == ANSI_TUI_BORDER ? 4 : 0);
+    int centered = (piw - total) / 2 + 1;
+    return centered > 0 ? centered : 1;
+}
+
+#endif /* ANSI_TUI_CENTER_ */
+
+#if ANSI_TUI_STATUS || ANSI_TUI_TEXT
+
+/** Compute effective width for a fill-to-parent widget.
+ *  If width >= 0, returns width as-is.
+ *  If width == -1 and parent is set, fills to parent's right edge. */
+static int tui_effective_width(const tui_placement_t *p, int width)
+{
+    if (width >= 0) return width;
+    if (!p->parent) return 0;
+    /* parent interior width (minus left/right border + padding) */
+    int piw = p->parent->width - 4;
+    /* Resolve negative or zero col against parent interior */
+    int c = p->col;
+    if (c < 0) c += piw + 1;
+    if (c == 0) c = 1;  /* col=0 (center) with width=-1: fill from left */
+    /* 4 = widget's own border overhead (border + space x 2) */
+    int bdr = (p->border == ANSI_TUI_BORDER) ? 4 : 0;
+    int eff = piw - (c - 1) - bdr;
+    return eff > 0 ? eff : 0;
+}
+
+#endif /* ANSI_TUI_STATUS || ANSI_TUI_TEXT */
+
 /* ------------------------------------------------------------------ */
 /* Frame widget                                                        */
 /* ------------------------------------------------------------------ */
+
+#if ANSI_TUI_FRAME
 
 void tui_frame_init(const tui_frame_t *f)
 {
@@ -236,9 +361,13 @@ void tui_frame_init(const tui_frame_t *f)
     }
 }
 
+#endif /* ANSI_TUI_FRAME */
+
 /* ------------------------------------------------------------------ */
 /* Label widget                                                        */
 /* ------------------------------------------------------------------ */
+
+#if ANSI_TUI_LABEL
 
 /** Compute the total interior width for a label (label + ": " + value). */
 static int label_interior_width(const tui_label_t *w)
@@ -253,19 +382,11 @@ void tui_label_init(const tui_label_t *w)
 
     if (w->state) w->state->enabled = 1;
 
-    int ar, ac;
-    tui_resolve(w->parent, w->row, w->col, &ar, &ac);
     int iw = label_interior_width(w);
-
-    /* Draw border if requested */
-    if (w->border == ANSI_TUI_BORDER)
-        tui_draw_border(ar, ac, iw, 1, w->color, 1);
-
-    /* Draw label text at interior position */
-    tui_widget_goto(w->parent, w->row, w->col, w->border, NULL, NULL);
+    tui_widget_chrome(&w->place, w->place.col, iw, w->place.color, NULL, NULL);
     if (w->label) {
-        if (w->color)
-            ansi_print("[%s]%s: [/]", w->color, w->label);
+        if (w->place.color)
+            ansi_print("[%s]%s: [/]", w->place.color, w->label);
         else
             ansi_print("%s: ", w->label);
     }
@@ -280,7 +401,7 @@ void tui_label_update(const tui_label_t *w, const char *fmt, ...)
 
     /* Position at value area */
     int ir, ic;
-    tui_widget_goto(w->parent, w->row, w->col, w->border, &ir, &ic);
+    tui_place_goto(&w->place, w->place.col, &ir, &ic);
     int label_len = w->label ? (int)strlen(w->label) : 0;
     int value_col = ic + label_len + 2;  /* after "Label: " */
 
@@ -303,18 +424,12 @@ void tui_label_enable(const tui_label_t *w, int enabled)
     if (!w || !w->state) return;
     w->state->enabled = enabled;
 
-    int ar, ac;
-    tui_resolve(w->parent, w->row, w->col, &ar, &ac);
     int iw = label_interior_width(w);
-    const char *color = enabled ? w->color : "dim";
-
-    if (w->border == ANSI_TUI_BORDER)
-        tui_draw_border(ar, ac, iw, 1, color, 1);
-
-    tui_widget_goto(w->parent, w->row, w->col, w->border, NULL, NULL);
+    const char *color = enabled ? w->place.color : "dim";
+    tui_widget_chrome(&w->place, w->place.col, iw, color, NULL, NULL);
     if (w->label) {
-        if (enabled && w->color)
-            ansi_print("[%s]%s: [/]", w->color, w->label);
+        if (enabled && w->place.color)
+            ansi_print("[%s]%s: [/]", w->place.color, w->label);
         else if (!enabled)
             ansi_print("[dim]%s: [/]", w->label);
         else
@@ -324,11 +439,13 @@ void tui_label_enable(const tui_label_t *w, int enabled)
     tui_pad(w->width);
 }
 
+#endif /* ANSI_TUI_LABEL */
+
 /* ------------------------------------------------------------------ */
 /* Bar widget                                                          */
 /* ------------------------------------------------------------------ */
 
-#if ANSI_PRINT_BAR
+#if ANSI_TUI_BAR
 
 /** Compute interior width for a bar widget (label + bar). */
 static int bar_interior_width(const tui_bar_t *w)
@@ -343,26 +460,25 @@ void tui_bar_init(const tui_bar_t *w)
 
     if (w->state) w->state->enabled = 1;
 
-    int ar, ac;
-    tui_resolve(w->parent, w->row, w->col, &ar, &ac);
     int iw = bar_interior_width(w);
-
-    if (w->border == ANSI_TUI_BORDER)
-        tui_draw_border(ar, ac, iw, 1, w->color, 1);
-
-    /* Draw label if present */
-    tui_widget_goto(w->parent, w->row, w->col, w->border, NULL, NULL);
+    tui_widget_chrome(&w->place, w->place.col, iw, w->place.color, NULL, NULL);
     if (w->label) ansi_puts(w->label);
 
     /* Draw empty bar (value = min = 0) */
-    tui_bar_update(w, 0.0, 0.0, 100.0);
+    tui_bar_update(w, 0.0, 0.0, 100.0, 1);
 }
 
 void tui_bar_update(const tui_bar_t *w,
-                         double value, double min, double max)
+                         double value, double min, double max, int force)
 {
     if (!w || !w->bar_buf) return;
     if (w->state && !w->state->enabled) return;
+
+    if (!force && w->state &&
+        w->state->value == value &&
+        w->state->min   == min   &&
+        w->state->max   == max)
+        return;
 
     if (w->state) {
         w->state->value = value;
@@ -371,12 +487,12 @@ void tui_bar_update(const tui_bar_t *w,
     }
 
     ansi_bar(w->bar_buf, w->bar_buf_size,
-             w->color, w->bar_width, w->track,
+             w->place.color, w->bar_width, w->track,
              value, min, max);
 
     /* Position cursor at bar area (after label) */
     int ir, ic;
-    tui_widget_goto(w->parent, w->row, w->col, w->border, &ir, &ic);
+    tui_place_goto(&w->place, w->place.col, &ir, &ic);
     int label_len = w->label ? (int)strlen(w->label) : 0;
 
     tui_goto(ir, ic + label_len);
@@ -388,16 +504,10 @@ void tui_bar_enable(const tui_bar_t *w, int enabled)
     if (!w || !w->state) return;
     w->state->enabled = enabled;
 
-    int ar, ac;
-    tui_resolve(w->parent, w->row, w->col, &ar, &ac);
     int iw = bar_interior_width(w);
-    const char *color = enabled ? w->color : "dim";
-
-    if (w->border == ANSI_TUI_BORDER)
-        tui_draw_border(ar, ac, iw, 1, color, 1);
-
+    const char *color = enabled ? w->place.color : "dim";
     int ir, ic;
-    tui_widget_goto(w->parent, w->row, w->col, w->border, &ir, &ic);
+    tui_widget_chrome(&w->place, w->place.col, iw, color, &ir, &ic);
     if (w->label) {
         if (!enabled)
             ansi_print("[dim]%s[/]", w->label);
@@ -408,7 +518,7 @@ void tui_bar_enable(const tui_bar_t *w, int enabled)
     if (enabled) {
         /* Re-render the bar with stored values */
         w->state->enabled = 1;   /* allow update through */
-        tui_bar_update(w, w->state->value, w->state->min, w->state->max);
+        tui_bar_update(w, w->state->value, w->state->min, w->state->max, 1);
     } else {
         /* Draw a dim empty track */
         if (w->bar_buf) {
@@ -421,11 +531,13 @@ void tui_bar_enable(const tui_bar_t *w, int enabled)
     }
 }
 
-#endif /* ANSI_PRINT_BAR */
+#endif /* ANSI_TUI_BAR */
 
 /* ------------------------------------------------------------------ */
 /* Status widget                                                       */
 /* ------------------------------------------------------------------ */
+
+#if ANSI_TUI_STATUS
 
 void tui_status_init(const tui_status_t *w)
 {
@@ -433,15 +545,10 @@ void tui_status_init(const tui_status_t *w)
 
     if (w->state) w->state->enabled = 1;
 
-    int ar, ac;
-    tui_resolve(w->parent, w->row, w->col, &ar, &ac);
-
-    if (w->border == ANSI_TUI_BORDER)
-        tui_draw_border(ar, ac, w->width, 1, w->color, 1);
-
-    /* Blank the interior */
-    tui_widget_goto(w->parent, w->row, w->col, w->border, NULL, NULL);
-    tui_pad(w->width);
+    int ew = tui_effective_width(&w->place, w->width);
+    int col = tui_center_col(w->place.col, w->place.parent, ew, w->place.border);
+    tui_widget_chrome(&w->place, col, ew, w->place.color, NULL, NULL);
+    tui_pad(ew);
 }
 
 void tui_status_update(const tui_status_t *w,
@@ -450,11 +557,13 @@ void tui_status_update(const tui_status_t *w,
     if (!w || !fmt) return;
     if (w->state && !w->state->enabled) return;
 
+    int ew = tui_effective_width(&w->place, w->width);
+    int col = tui_center_col(w->place.col, w->place.parent, ew, w->place.border);
     int ir, ic;
-    tui_widget_goto(w->parent, w->row, w->col, w->border, &ir, &ic);
+    tui_place_goto(&w->place, col, &ir, &ic);
 
     /* Clear interior first, then reposition and write new text */
-    tui_pad(w->width);
+    tui_pad(ew);
 
     tui_goto(ir, ic);
 
@@ -469,36 +578,20 @@ void tui_status_enable(const tui_status_t *w, int enabled)
     if (!w || !w->state) return;
     w->state->enabled = enabled;
 
-    int ar, ac;
-    tui_resolve(w->parent, w->row, w->col, &ar, &ac);
-    const char *color = enabled ? w->color : "dim";
-
-    if (w->border == ANSI_TUI_BORDER)
-        tui_draw_border(ar, ac, w->width, 1, color, 1);
-
-    /* Blank interior when disabling */
-    tui_widget_goto(w->parent, w->row, w->col, w->border, NULL, NULL);
-    tui_pad(w->width);
+    int ew = tui_effective_width(&w->place, w->width);
+    int col = tui_center_col(w->place.col, w->place.parent, ew, w->place.border);
+    const char *color = enabled ? w->place.color : "dim";
+    tui_widget_chrome(&w->place, col, ew, color, NULL, NULL);
+    tui_pad(ew);
 }
+
+#endif /* ANSI_TUI_STATUS */
 
 /* ------------------------------------------------------------------ */
 /* Text widget                                                         */
 /* ------------------------------------------------------------------ */
 
-/** Compute the effective width for a text widget.
- *  If width >= 0, returns width as-is.
- *  If width == -1 and parent is set, fills to parent's right edge. */
-static int text_effective_width(const tui_text_t *w)
-{
-    if (w->width >= 0) return w->width;
-    if (!w->parent) return 0;
-    /* 4 = frame border overhead: border char + space on each side */
-    int piw = w->parent->width - 4;
-    /* 4 = widget's own border overhead (same: border + space × 2) */
-    int bdr = (w->border == ANSI_TUI_BORDER) ? 4 : 0;
-    int eff = piw - (w->col - 1) - bdr;
-    return eff > 0 ? eff : 0;
-}
+#if ANSI_TUI_TEXT
 
 void tui_text_init(const tui_text_t *w)
 {
@@ -506,15 +599,9 @@ void tui_text_init(const tui_text_t *w)
 
     if (w->state) w->state->enabled = 1;
 
-    int ew = text_effective_width(w);
-    int ar, ac;
-    tui_resolve(w->parent, w->row, w->col, &ar, &ac);
-
-    if (w->border == ANSI_TUI_BORDER)
-        tui_draw_border(ar, ac, ew, 1, w->color, 1);
-
-    /* Blank the interior */
-    tui_widget_goto(w->parent, w->row, w->col, w->border, NULL, NULL);
+    int ew = tui_effective_width(&w->place, w->width);
+    int col = tui_center_col(w->place.col, w->place.parent, ew, w->place.border);
+    tui_widget_chrome(&w->place, col, ew, w->place.color, NULL, NULL);
     tui_pad(ew);
 }
 
@@ -523,9 +610,10 @@ void tui_text_update(const tui_text_t *w, const char *fmt, ...)
     if (!w || !fmt) return;
     if (w->state && !w->state->enabled) return;
 
-    int ew = text_effective_width(w);
+    int ew = tui_effective_width(&w->place, w->width);
+    int col = tui_center_col(w->place.col, w->place.parent, ew, w->place.border);
     int ir, ic;
-    tui_widget_goto(w->parent, w->row, w->col, w->border, &ir, &ic);
+    tui_place_goto(&w->place, col, &ir, &ic);
 
     /* Clear interior first, then reposition and write new text */
     tui_pad(ew);
@@ -543,24 +631,20 @@ void tui_text_enable(const tui_text_t *w, int enabled)
     if (!w || !w->state) return;
     w->state->enabled = enabled;
 
-    int ew = text_effective_width(w);
-    int ar, ac;
-    tui_resolve(w->parent, w->row, w->col, &ar, &ac);
-    const char *color = enabled ? w->color : "dim";
-
-    if (w->border == ANSI_TUI_BORDER)
-        tui_draw_border(ar, ac, ew, 1, color, 1);
-
-    /* Blank interior when disabling */
-    tui_widget_goto(w->parent, w->row, w->col, w->border, NULL, NULL);
+    int ew = tui_effective_width(&w->place, w->width);
+    int col = tui_center_col(w->place.col, w->place.parent, ew, w->place.border);
+    const char *color = enabled ? w->place.color : "dim";
+    tui_widget_chrome(&w->place, col, ew, color, NULL, NULL);
     tui_pad(ew);
 }
+
+#endif /* ANSI_TUI_TEXT */
 
 /* ------------------------------------------------------------------ */
 /* Check widget                                                        */
 /* ------------------------------------------------------------------ */
 
-#if ANSI_PRINT_EMOJI
+#if ANSI_TUI_CHECK
 
 /** Compute interior width for a check widget (emoji + space + label). */
 static int check_interior_width(const tui_check_t *w)
@@ -578,15 +662,8 @@ void tui_check_init(const tui_check_t *w, int state)
         w->state->checked = state;
     }
 
-    int ar, ac;
-    tui_resolve(w->parent, w->row, w->col, &ar, &ac);
     int iw = w->width > 0 ? w->width : check_interior_width(w);
-
-    if (w->border == ANSI_TUI_BORDER)
-        tui_draw_border(ar, ac, iw, 1, w->color, 1);
-
-    /* Draw indicator + label */
-    tui_widget_goto(w->parent, w->row, w->col, w->border, NULL, NULL);
+    tui_widget_chrome(&w->place, w->place.col, iw, w->place.color, NULL, NULL);
     ansi_puts(state ? "[green]:check:[/]" : "[red]:cross:[/]");
     if (w->label) {
         ansi_puts(" ");
@@ -594,22 +671,24 @@ void tui_check_init(const tui_check_t *w, int state)
     }
 }
 
-void tui_check_update(const tui_check_t *w, int state)
+void tui_check_update(const tui_check_t *w, int state, int force)
 {
     if (!w) return;
     if (w->state && !w->state->enabled) return;
 
+    if (!force && w->state && w->state->checked == state) return;
+
     if (w->state) w->state->checked = state;
 
     /* Overwrite just the emoji indicator */
-    tui_widget_goto(w->parent, w->row, w->col, w->border, NULL, NULL);
+    tui_place_goto(&w->place, w->place.col, NULL, NULL);
     ansi_puts(state ? "[green]:check:[/]" : "[red]:cross:[/]");
 }
 
 void tui_check_toggle(const tui_check_t *w)
 {
     if (!w || !w->state) return;
-    tui_check_update(w, !w->state->checked);
+    tui_check_update(w, !w->state->checked, 1);
 }
 
 void tui_check_enable(const tui_check_t *w, int enabled)
@@ -617,15 +696,9 @@ void tui_check_enable(const tui_check_t *w, int enabled)
     if (!w || !w->state) return;
     w->state->enabled = enabled;
 
-    int ar, ac;
-    tui_resolve(w->parent, w->row, w->col, &ar, &ac);
     int iw = w->width > 0 ? w->width : check_interior_width(w);
-    const char *color = enabled ? w->color : "dim";
-
-    if (w->border == ANSI_TUI_BORDER)
-        tui_draw_border(ar, ac, iw, 1, color, 1);
-
-    tui_widget_goto(w->parent, w->row, w->col, w->border, NULL, NULL);
+    const char *color = enabled ? w->place.color : "dim";
+    tui_widget_chrome(&w->place, w->place.col, iw, color, NULL, NULL);
     if (enabled) {
         /* Restore from stored state */
         ansi_puts(w->state->checked ? "[green]:check:[/]" : "[red]:cross:[/]");
@@ -642,4 +715,139 @@ void tui_check_enable(const tui_check_t *w, int enabled)
     }
 }
 
-#endif /* ANSI_PRINT_EMOJI */
+#endif /* ANSI_TUI_CHECK */
+
+/* ------------------------------------------------------------------ */
+/* Metric widget                                                       */
+/* ------------------------------------------------------------------ */
+
+#if ANSI_TUI_METRIC
+
+/** Determine which zone a value falls in. */
+static int metric_zone(const tui_metric_t *w, double value)
+{
+    if (value < w->thresh_lo) return -1;
+    if (value > w->thresh_hi) return  1;
+    return 0;
+}
+
+/** Return the color string for a given zone. */
+static const char *metric_color(const tui_metric_t *w, int zone)
+{
+    switch (zone) {
+    case -1: return w->color_lo;
+    case  1: return w->color_hi;
+    default: return w->place.color;  /* nominal = place.color */
+    }
+}
+
+/** Center a title on the top border row of a metric widget. */
+static void metric_draw_title(const tui_metric_t *w,
+                               int ar, int ac, const char *color)
+{
+    if (!w->title || !w->title[0]) return;
+    int title_len = (int)strlen(w->title);
+    int offset = (w->width + 2 - title_len - 2) / 2;  /* center in hz span */
+    if (offset < 0) offset = 0;
+    tui_goto(ar, ac + 1 + offset);
+    if (color)
+        ansi_print(" [bold %s]%s[/] ", color, w->title);
+    else
+        ansi_print(" [bold]%s[/] ", w->title);
+}
+
+/** Draw the metric value as colored foreground text, centered in the interior.
+ *  Pads to width+2 chars at ac+1 to clear the full span between borders. */
+static void metric_draw_value(const tui_metric_t *w, int ar, int ac,
+                               double value, const char *zone_color)
+{
+    char vbuf[64];
+    snprintf(vbuf, sizeof(vbuf), w->fmt, value);
+    int vlen = (int)strlen(vbuf);
+    int fill = w->width + 2;
+    int left_pad = (fill - vlen) / 2;
+    if (left_pad < 0) left_pad = 0;
+    int right_pad = fill - vlen - left_pad;
+    if (right_pad < 0) right_pad = 0;
+
+    tui_goto(ar + 1, ac + 1);
+    ansi_print("%*s[%s]%s[/]%*s",
+               left_pad, "", zone_color, vbuf, right_pad, "");
+}
+
+void tui_metric_init(const tui_metric_t *w)
+{
+    if (!w) return;
+
+    const char *color = w->place.color;
+    if (w->state) {
+        w->state->enabled = 1;
+        w->state->value   = 0.0;
+        w->state->zone    = 0;
+    }
+
+    int col = tui_center_col(w->place.col, w->place.parent, w->width, w->place.border);
+    int ar, ac;
+    tui_resolve(w->place.parent, w->place.row, col, &ar, &ac);
+
+    tui_draw_border(ar, ac, w->width, 1, color, 0);
+    metric_draw_title(w, ar, ac, color);
+
+    /* Blank the interior */
+    tui_goto(ar + 1, ac + 1);
+    tui_pad(w->width + 2);
+}
+
+void tui_metric_update(const tui_metric_t *w, double value, int force)
+{
+    if (!w) return;
+    if (w->state && !w->state->enabled) return;
+
+    if (!force && w->state && w->state->value == value) return;
+
+    int zone = metric_zone(w, value);
+    const char *color = metric_color(w, zone);
+
+    int col = tui_center_col(w->place.col, w->place.parent, w->width, w->place.border);
+    int ar, ac;
+    tui_resolve(w->place.parent, w->place.row, col, &ar, &ac);
+
+    /* Redraw border + title if zone changed, forced, or no state */
+    int need_border = force;
+    if (w->state) {
+        if (!need_border) need_border = (zone != w->state->zone);
+        w->state->zone  = zone;
+        w->state->value = value;
+    } else {
+        need_border = 1;
+    }
+    if (need_border) {
+        tui_draw_border(ar, ac, w->width, 1, color, 0);
+        metric_draw_title(w, ar, ac, color);
+    }
+
+    metric_draw_value(w, ar, ac, value, color);
+}
+
+void tui_metric_enable(const tui_metric_t *w, int enabled)
+{
+    if (!w || !w->state) return;
+    w->state->enabled = enabled;
+
+    int col = tui_center_col(w->place.col, w->place.parent, w->width, w->place.border);
+    int ar, ac;
+    tui_resolve(w->place.parent, w->place.row, col, &ar, &ac);
+
+    if (enabled) {
+        /* Force zone mismatch so update redraws border */
+        w->state->zone = -2;
+        tui_metric_update(w, w->state->value, 1);
+    } else {
+        tui_draw_border(ar, ac, w->width, 1, "dim", 0);
+        metric_draw_title(w, ar, ac, "dim");
+        tui_goto(ar + 1, ac + 1);
+        tui_pad(w->width + 2);
+    }
+}
+
+#endif /* ANSI_TUI_METRIC */

@@ -2,7 +2,7 @@
 
 ![version](https://img.shields.io/badge/version-1.2.0-blue "Library version")
 ![license](https://img.shields.io/badge/license-MIT-green "MIT License")
-![test-full](https://img.shields.io/badge/test--full-237%20passed-brightgreen "All features enabled")
+![test-full](https://img.shields.io/badge/test--full-247%20passed-brightgreen "All features enabled")
 ![test-minimal](https://img.shields.io/badge/test--minimal-69%20passed-brightgreen "All optional features disabled")
 ![C standard](https://img.shields.io/badge/C-C99-orange "Requires C99 compiler")
 
@@ -331,23 +331,23 @@ by target architecture but the relative costs are representative.  On 32-bit
 embedded targets, sizes will be slightly smaller due to 4-byte pointers (vs 8),
 particularly RAM usage (~60-70 B vs ~100 B on 64-bit).
 
-| Feature Flag                 |   .text |    Delta | % of Full |   CSum | Notes                             |
-| ---------------------------- | ------: | -------: | --------: | -----: | --------------------------------- |
-| *Minimal baseline*           |  3745 B |        0 |     20.0% |  20.0% | 8 colors, `fg:/bg:`, tag parsing  |
-| `ANSI_PRINT_UNICODE`         |  4150 B |   +405 B |      2.2% |  22.2% | `:U-XXXX:` codepoint escapes      |
-| `ANSI_PRINT_BRIGHT_COLORS`   |  4272 B |   +527 B |      2.8% |  25.0% | 8 bright color name entries       |
-| `ANSI_PRINT_STYLES`          |  4352 B |   +607 B |      3.2% |  28.3% | 6 style attributes                |
-| `ANSI_PRINT_EXTENDED_COLORS` |  4571 B |   +826 B |      4.4% |  32.7% | 12 extra color name entries       |
-| `ANSI_PRINT_EMOJI`           |  4729 B |   +984 B |      5.3% |  38.0% | 21 core emoji shortcodes          |
-| `ANSI_PRINT_BAR`             |  4810 B |  +1065 B |      5.7% |  43.7% | Bar graphs with block elements    |
-| `ANSI_PRINT_BANNER`          |  4946 B |  +1201 B |      6.4% |  50.1% | Boxed text with box-drawing chars |
-| `ANSI_PRINT_GRADIENTS`       |  5368 B |  +1623 B |      8.7% |  58.8% | Rainbow + gradient (24-bit color) |
-| `ANSI_PRINT_WINDOW`          |  6202 B |  +2457 B |     13.1% |  71.9% | Streaming boxed window output     |
-| `ANSI_PRINT_EXTENDED_EMOJI`  |  9804 B |  +6059 B |     32.4% | 104.4% | +130 emoji (requires `EMOJI`)     |
-| *Full build (all enabled)*   | 18690 B | +14945 B |         — | 100.0% | Everything                        |
+| Feature Flag                 |   .text |    Delta | Notes                             |
+| ---------------------------- | ------: | -------: | --------------------------------- |
+| *Minimal baseline*           |  3745 B |        — | 8 colors, `fg:/bg:`, tag parsing  |
+| `ANSI_PRINT_UNICODE`         |  4150 B |   +405 B | `:U-XXXX:` codepoint escapes      |
+| `ANSI_PRINT_BRIGHT_COLORS`   |  4272 B |   +527 B | 8 bright color name entries       |
+| `ANSI_PRINT_STYLES`          |  4352 B |   +607 B | 6 style attributes                |
+| `ANSI_PRINT_EXTENDED_COLORS` |  4571 B |   +826 B | 12 extra color name entries       |
+| `ANSI_PRINT_EMOJI`           |  4729 B |   +984 B | 21 core emoji shortcodes          |
+| `ANSI_PRINT_BAR`             |  4810 B |  +1065 B | Bar graphs with block elements    |
+| `ANSI_PRINT_BANNER`          |  4946 B |  +1201 B | Boxed text with box-drawing chars |
+| `ANSI_PRINT_GRADIENTS`       |  5368 B |  +1623 B | Rainbow + gradient (24-bit color) |
+| `ANSI_PRINT_WINDOW`          |  6202 B |  +2457 B | Streaming boxed window output     |
+| `ANSI_PRINT_EXTENDED_EMOJI`  |  9804 B |  +6059 B | +130 emoji (requires `EMOJI`)     |
+| **Full build (all enabled)** | 18690 B | +14945 B | Everything                        |
 
-> Cumulative exceeds 100% because features share some common code that is
-> counted once in the full build but appears in multiple individual deltas.
+> Each delta is measured independently (minimal + one flag).  Deltas overlap
+> due to shared code, so individual deltas do not sum to the full build delta.
 
 RAM usage is minimal in all configurations: 82 bytes (BSS) for a minimal build,
 118 bytes with all features enabled, plus the caller-provided format buffer.
@@ -356,20 +356,22 @@ RAM usage is minimal in all configurations: 82 bytes (BSS) for a minimal build,
 
 Each row shows the combined `.text` of `ansi_print.c` + `ansi_tui.c` when a
 single TUI widget flag is enabled on top of a full `ansi_print` build with all
-TUI widgets disabled.  The TUI baseline includes screen helpers (`tui_cls`,
-`tui_goto`, `tui_cursor_hide/show`) which are always compiled.
+TUI widgets disabled.  The baseline includes the full `ansi_print` library plus
+TUI screen helpers (`tui_cls`, `tui_goto`, `tui_cursor_hide/show`).  Deltas
+overlap because widgets share common infrastructure (border drawing, placement
+helpers, etc.), so individual deltas do not sum to the full build delta.
 
-| Widget Flag       |   .text |   Delta | % of Full |   CSum | Notes                            |
-| ----------------- | ------: | ------: | --------: | -----: | -------------------------------- |
-| *TUI baseline*    | 18829 B |       0 |     68.4% |  68.4% | Screen helpers, no widgets       |
-| `ANSI_TUI_FRAME`  | 20353 B | +1524 B |      5.5% |  73.9% | Border container, no content     |
-| `ANSI_TUI_CHECK`  | 21080 B | +2251 B |      8.2% |  82.1% | Boolean indicator with emoji     |
-| `ANSI_TUI_STATUS` | 21212 B | +2383 B |      8.7% |  90.7% | Single-line text field           |
-| `ANSI_TUI_TEXT`   | 21212 B | +2383 B |      8.7% |  99.4% | Generic text with fill/center    |
-| `ANSI_TUI_LABEL`  | 21230 B | +2401 B |      8.7% | 108.1% | "Name: value" with padding       |
-| `ANSI_TUI_BAR`    | 21266 B | +2437 B |      8.9% | 117.0% | Bar graph wrapper (`ansi_bar`)   |
-| `ANSI_TUI_METRIC` | 21531 B | +2702 B |      9.8% | 126.8% | Threshold gauge with zone colors |
-| *Full TUI build*  | 27523 B | +8694 B |         — | 100.0% | All widgets enabled              |
+| Component / Flag   |   .text |   Delta | Notes                            |
+| ------------------ | ------: | ------: | -------------------------------- |
+| *ansi_print lib*   | 18829 B |       — | Full library + screen helpers    |
+| `ANSI_TUI_FRAME`   | 20353 B | +1524 B | Border container, no content     |
+| `ANSI_TUI_CHECK`   | 20896 B | +2067 B | Boolean indicator with emoji     |
+| `ANSI_TUI_LABEL`   | 20970 B | +2141 B | "Name: value" with padding       |
+| `ANSI_TUI_STATUS`  | 21039 B | +2210 B | Single-line text field           |
+| `ANSI_TUI_TEXT`    | 21039 B | +2210 B | Generic text with fill/center    |
+| `ANSI_TUI_BAR`     | 21047 B | +2218 B | Bar graph wrapper (`ansi_bar`)   |
+| `ANSI_TUI_METRIC`  | 21538 B | +2709 B | Threshold gauge with zone colors |
+| **Full TUI build** | 26145 B | +7316 B | All widgets enabled              |
 
 > Content widgets (all except Frame) share drawing primitives (`draw_border`,
 > `resolve`, `pad`, `center`), so the first content widget pays for the shared
@@ -918,7 +920,7 @@ Build config: EMOJI=1 EXTENDED_EMOJI=1 EXTENDED_COLORS=1 BRIGHT_COLORS=1 STYLES=
 Build config: BAR=1 BANNER=1 WINDOW=1 EMOJI=1
   TUI flags: FRAME=1 LABEL=1 BAR=1 STATUS=1 TEXT=1 CHECK=1 METRIC=1
 ...
-92 Tests 0 Failures 0 Ignored
+102 Tests 0 Failures 0 Ignored
 
 $ make test-minimal
 >> build/test_cprint_minimal
