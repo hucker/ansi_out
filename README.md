@@ -1,6 +1,6 @@
 # `ansi_print`
 
-![version](https://img.shields.io/badge/version-1.2.0-blue "Library version")
+![version](https://img.shields.io/badge/version-1.3.0-blue "Library version")
 ![license](https://img.shields.io/badge/license-MIT-green "MIT License")
 ![test-full](https://img.shields.io/badge/test--full-260%20passed-brightgreen "All features enabled")
 ![test-minimal](https://img.shields.io/badge/test--minimal-69%20passed-brightgreen "All optional features disabled")
@@ -151,7 +151,7 @@ Or fetch it directly from a Git repository:
 include(FetchContent)
 FetchContent_Declare(ansi_print
     GIT_REPOSITORY https://github.com/yourname/ansi_print.git
-    GIT_TAG        v1.2.0
+    GIT_TAG        v1.3.0
 )
 FetchContent_MakeAvailable(ansi_print)
 target_link_libraries(my_app PRIVATE ansi_print)
@@ -1009,6 +1009,25 @@ The minimal build runs fewer tests (features compiled out) plus additional
 tests that verify compiled-out features degrade gracefully (unknown tags
 consumed silently, emoji shortcodes pass through as literal text, etc.).
 TUI minimal runs only screen helper tests since all widget types are disabled.
+
+## Documentation
+
+API documentation is generated from the source headers using [Doxygen](https://www.doxygen.nl/).
+All public functions, types, and feature flags are annotated with `@brief`, `@param`,
+`@code`/`@endcode` examples, and cross-references.
+
+```bash
+make docs                         # generate HTML docs
+open build/docs/html/index.html   # view in browser
+```
+
+Or invoke doxygen directly:
+
+```bash
+doxygen Doxyfile
+```
+
+Output is written to `build/docs/html/`.
 
 ## License
 
