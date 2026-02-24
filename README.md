@@ -2,8 +2,8 @@
 
 ![version](https://img.shields.io/badge/version-1.2.0-blue "Library version")
 ![license](https://img.shields.io/badge/license-MIT-green "MIT License")
-![test-full](https://img.shields.io/badge/test--full-145%20passed-brightgreen "All features enabled")
-![test-minimal](https://img.shields.io/badge/test--minimal-64%20passed-brightgreen "All optional features disabled")
+![test-full](https://img.shields.io/badge/test--full-237%20passed-brightgreen "All features enabled")
+![test-minimal](https://img.shields.io/badge/test--minimal-69%20passed-brightgreen "All optional features disabled")
 ![C standard](https://img.shields.io/badge/C-C99-orange "Requires C99 compiler")
 
 A lightweight C library for colored terminal output using
@@ -44,13 +44,24 @@ What you get over hand-rolled macros:
 - Portable output via injected putc -- desktop, UART, USB CDC, any byte stream
 - Compile-time feature flags so you only pay for what you use
 
-## Terminal Output
+## ansi_print Demo
 
 Output of `ansiprint --demo`, the bundled CLI tool that showcases the main
 features of the library: named colors, styles, backgrounds, gradients, emoji,
 banners, windows, and bar graphs.
 
 ![ansiprint --demo output](img/demo.png)
+
+## TUI Widget Demo
+
+Output of `ansiprint --tui-demo`, showing the TUI widget layer built on top of
+ansi_print.  The TUI layer uses ansi_print's markup and output functions to
+construct positioned widgets: nested frames, labels, bar graphs, metric gauges
+with threshold colors, check indicators, and status fields -- all placed with
+cursor addressing and updated in place.
+
+![ansiprint --tui-demo output](img/tui_demo.png)
+
 
 ## Features
 
@@ -122,6 +133,8 @@ Copy these into your project:
 | ------------------ | ---------------------------------------- |
 | `src/ansi_print.h` | Public API header                        |
 | `src/ansi_print.c` | Implementation (single translation unit) |
+| `src/ansi_tui.h`   | TUI widget layer header (optional)       |
+| `src/ansi_tui.c`   | TUI widget implementation (optional)     |
 
 ### CMake
 
@@ -221,6 +234,43 @@ Or on the command line: `-DANSI_PRINT_MINIMAL`
 | `ANSI_PRINT_BAR`             | 1                 | `ansi_bar()` inline horizontal bar graphs           |
 | `ANSI_PRINT_BOX_STYLE`       | `ANSI_BOX_DOUBLE` | Box-drawing character set for banner/window borders |
 
+### TUI Feature Macros
+
+The TUI widget layer (`ansi_tui.h` / `ansi_tui.c`) provides positioned terminal
+widgets built on top of `ansi_print`.  Each widget type has its own feature flag
+following the same pattern — all default to enabled, all disabled by
+`ANSI_PRINT_MINIMAL`, and individual flags can be overridden.
+
+| Feature Flag Macro | Default | Controls                                            |
+| ------------------ | ------- | --------------------------------------------------- |
+| `ANSI_TUI_FRAME`   | 1       | Frame container (border box)                        |
+| `ANSI_TUI_LABEL`   | 1       | Label widget ("Name: value")                        |
+| `ANSI_TUI_BAR`     | 1       | Bar graph widget (requires `ANSI_PRINT_BAR`)        |
+| `ANSI_TUI_STATUS`  | 1       | Status text field                                   |
+| `ANSI_TUI_TEXT`    | 1       | Generic text widget                                 |
+| `ANSI_TUI_CHECK`   | 1       | Check/cross indicator (requires `ANSI_PRINT_EMOJI`) |
+| `ANSI_TUI_METRIC`  | 1       | Threshold-based metric gauge                        |
+
+`ANSI_TUI_BAR` is forced off when `ANSI_PRINT_BAR=0` (no underlying bar
+renderer).  `ANSI_TUI_CHECK` is forced off when `ANSI_PRINT_EMOJI=0` (no emoji
+shortcode support).
+
+The `tui_frame_t` struct and `tui_border_t` enum are always defined regardless
+of flags, since all widget types reference them via their `parent` pointer.
+
+```c
+/* app_cfg.h -- minimal TUI with only frame + metric */
+#define ANSI_PRINT_MINIMAL
+#define ANSI_TUI_FRAME   1
+#define ANSI_TUI_METRIC  1
+```
+
+Or on the command line:
+
+```bash
+gcc -DANSI_PRINT_MINIMAL -DANSI_TUI_FRAME=1 -DANSI_TUI_METRIC=1 ...
+```
+
 #### Box Style Constants
 
 `ANSI_PRINT_BOX_STYLE` selects the box-drawing character set used by
@@ -283,24 +333,50 @@ particularly RAM usage (~60-70 B vs ~100 B on 64-bit).
 
 | Feature Flag                 |   .text |    Delta | % of Full |   CSum | Notes                             |
 | ---------------------------- | ------: | -------: | --------: | -----: | --------------------------------- |
-| *Minimal baseline*           |  3682 B |        0 |     19.3% |  19.3% | 8 colors, `fg:/bg:`, tag parsing  |
-| `ANSI_PRINT_UNICODE`         |  4087 B |   +405 B |      2.1% |  21.4% | `:U-XXXX:` codepoint escapes      |
-| `ANSI_PRINT_BRIGHT_COLORS`   |  4209 B |   +527 B |      2.8% |  24.2% | 8 bright color name entries       |
-| `ANSI_PRINT_STYLES`          |  4289 B |   +607 B |      3.2% |  27.3% | 6 style attributes                |
-| `ANSI_PRINT_EXTENDED_COLORS` |  4508 B |   +826 B |      4.3% |  31.7% | 12 extra color name entries       |
-| `ANSI_PRINT_EMOJI`           |  4666 B |   +984 B |      5.2% |  36.8% | 21 core emoji shortcodes          |
-| `ANSI_PRINT_BAR`             |  4833 B |  +1151 B |      6.0% |  42.9% | Bar graphs with block elements    |
-| `ANSI_PRINT_BANNER`          |  4883 B |  +1201 B |      6.3% |  49.2% | Boxed text with box-drawing chars |
-| `ANSI_PRINT_GRADIENTS`       |  5675 B |  +1993 B |     10.4% |  59.6% | Rainbow + gradient (24-bit color) |
-| `ANSI_PRINT_WINDOW`          |  6139 B |  +2457 B |     12.9% |  72.5% | Streaming boxed window output     |
-| `ANSI_PRINT_EXTENDED_EMOJI`  |  9741 B |  +6059 B |     31.8% | 104.2% | +130 emoji (requires `EMOJI`)     |
-| *Full build (all enabled)*   | 19082 B | +15400 B |         — | 100.0% | Everything                        |
+| *Minimal baseline*           |  3745 B |        0 |     20.0% |  20.0% | 8 colors, `fg:/bg:`, tag parsing  |
+| `ANSI_PRINT_UNICODE`         |  4150 B |   +405 B |      2.2% |  22.2% | `:U-XXXX:` codepoint escapes      |
+| `ANSI_PRINT_BRIGHT_COLORS`   |  4272 B |   +527 B |      2.8% |  25.0% | 8 bright color name entries       |
+| `ANSI_PRINT_STYLES`          |  4352 B |   +607 B |      3.2% |  28.3% | 6 style attributes                |
+| `ANSI_PRINT_EXTENDED_COLORS` |  4571 B |   +826 B |      4.4% |  32.7% | 12 extra color name entries       |
+| `ANSI_PRINT_EMOJI`           |  4729 B |   +984 B |      5.3% |  38.0% | 21 core emoji shortcodes          |
+| `ANSI_PRINT_BAR`             |  4810 B |  +1065 B |      5.7% |  43.7% | Bar graphs with block elements    |
+| `ANSI_PRINT_BANNER`          |  4946 B |  +1201 B |      6.4% |  50.1% | Boxed text with box-drawing chars |
+| `ANSI_PRINT_GRADIENTS`       |  5368 B |  +1623 B |      8.7% |  58.8% | Rainbow + gradient (24-bit color) |
+| `ANSI_PRINT_WINDOW`          |  6202 B |  +2457 B |     13.1% |  71.9% | Streaming boxed window output     |
+| `ANSI_PRINT_EXTENDED_EMOJI`  |  9804 B |  +6059 B |     32.4% | 104.4% | +130 emoji (requires `EMOJI`)     |
+| *Full build (all enabled)*   | 18690 B | +14945 B |         — | 100.0% | Everything                        |
 
 > Cumulative exceeds 100% because features share some common code that is
 > counted once in the full build but appears in multiple individual deltas.
 
 RAM usage is minimal in all configurations: 82 bytes (BSS) for a minimal build,
 118 bytes with all features enabled, plus the caller-provided format buffer.
+
+### TUI Flash Impact per Widget
+
+Each row shows the combined `.text` of `ansi_print.c` + `ansi_tui.c` when a
+single TUI widget flag is enabled on top of a full `ansi_print` build with all
+TUI widgets disabled.  The TUI baseline includes screen helpers (`tui_cls`,
+`tui_goto`, `tui_cursor_hide/show`) which are always compiled.
+
+| Widget Flag       |   .text |   Delta | % of Full |   CSum | Notes                            |
+| ----------------- | ------: | ------: | --------: | -----: | -------------------------------- |
+| *TUI baseline*    | 18829 B |       0 |     68.4% |  68.4% | Screen helpers, no widgets       |
+| `ANSI_TUI_FRAME`  | 20353 B | +1524 B |      5.5% |  73.9% | Border container, no content     |
+| `ANSI_TUI_CHECK`  | 21080 B | +2251 B |      8.2% |  82.1% | Boolean indicator with emoji     |
+| `ANSI_TUI_STATUS` | 21212 B | +2383 B |      8.7% |  90.7% | Single-line text field           |
+| `ANSI_TUI_TEXT`   | 21212 B | +2383 B |      8.7% |  99.4% | Generic text with fill/center    |
+| `ANSI_TUI_LABEL`  | 21230 B | +2401 B |      8.7% | 108.1% | "Name: value" with padding       |
+| `ANSI_TUI_BAR`    | 21266 B | +2437 B |      8.9% | 117.0% | Bar graph wrapper (`ansi_bar`)   |
+| `ANSI_TUI_METRIC` | 21531 B | +2702 B |      9.8% | 126.8% | Threshold gauge with zone colors |
+| *Full TUI build*  | 27523 B | +8694 B |         — | 100.0% | All widgets enabled              |
+
+> Content widgets (all except Frame) share drawing primitives (`draw_border`,
+> `resolve`, `pad`, `center`), so the first content widget pays for the shared
+> code and subsequent widgets add only their unique logic.
+
+`ansi_tui.c` uses zero BSS — all mutable state lives in caller-provided
+`_state_t` structs.
 
 ### Example app_cfg.h (minimal embedded build)
 
@@ -835,22 +911,32 @@ Tests print a config banner showing which features are active:
 $ make test
 >> build/test_cprint
 Build config: EMOJI=1 EXTENDED_EMOJI=1 EXTENDED_COLORS=1 BRIGHT_COLORS=1 STYLES=1 GRADIENTS=1 UNICODE=1 BANNER=1 WINDOW=1 BAR=1
-test/test_cprint.c:883:test_plain_text_no_tags:PASS
-test/test_cprint.c:884:test_printf_formatting:PASS
 ...
 145 Tests 0 Failures 0 Ignored
+
+>> build/test_tui
+Build config: BAR=1 BANNER=1 WINDOW=1 EMOJI=1
+  TUI flags: FRAME=1 LABEL=1 BAR=1 STATUS=1 TEXT=1 CHECK=1 METRIC=1
+...
+92 Tests 0 Failures 0 Ignored
 
 $ make test-minimal
 >> build/test_cprint_minimal
 Build config: EMOJI=0 EXTENDED_EMOJI=0 EXTENDED_COLORS=0 BRIGHT_COLORS=0 STYLES=0 GRADIENTS=0 UNICODE=0 BANNER=0 WINDOW=0 BAR=0
-test/test_cprint.c:883:test_plain_text_no_tags:PASS
 ...
 64 Tests 0 Failures 0 Ignored
+
+>> build/test_tui_minimal
+Build config: BAR=0 BANNER=0 WINDOW=0 EMOJI=0
+  TUI flags: FRAME=0 LABEL=0 BAR=0 STATUS=0 TEXT=0 CHECK=0 METRIC=0
+...
+5 Tests 0 Failures 0 Ignored
 ```
 
 The minimal build runs fewer tests (features compiled out) plus additional
 tests that verify compiled-out features degrade gracefully (unknown tags
 consumed silently, emoji shortcodes pass through as literal text, etc.).
+TUI minimal runs only screen helper tests since all widget types are disabled.
 
 ## License
 
