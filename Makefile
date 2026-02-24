@@ -12,8 +12,8 @@ UNITY_DIR = test/unity
 BUILD_DIR = build
 
 # Source under test
-SRC = $(SRC_DIR)/ansi_print.c
-HDR = $(SRC_DIR)/ansi_print.h
+SRC = $(SRC_DIR)/ansi_print.c $(SRC_DIR)/ansi_tui.c
+HDR = $(SRC_DIR)/ansi_print.h $(SRC_DIR)/ansi_tui.h
 
 # Unity framework
 UNITY_SRC = $(UNITY_DIR)/unity.c

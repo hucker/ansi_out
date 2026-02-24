@@ -8,7 +8,7 @@ project(ansi_print
 
 # --- Library target -----------------------------------------------------------
 
-add_library(ansi_print src/ansi_print.c)
+add_library(ansi_print src/ansi_print.c src/ansi_tui.c)
 target_include_directories(ansi_print PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
     $<INSTALL_INTERFACE:include>
@@ -51,6 +51,10 @@ if(ANSI_PRINT_BUILD_TESTS)
     add_executable(test_cprint test/test_cprint.c)
     target_link_libraries(test_cprint PRIVATE ansi_print unity)
     add_test(NAME test_cprint COMMAND test_cprint)
+
+    add_executable(test_tui test/test_tui.c)
+    target_link_libraries(test_tui PRIVATE ansi_print unity)
+    add_test(NAME test_tui COMMAND test_tui)
 
     # Minimal build variant
     add_executable(test_cprint_minimal test/test_cprint.c)
