@@ -869,6 +869,248 @@ void test_bar_null_widget(void)
 #endif /* ANSI_TUI_BAR */
 
 /* ------------------------------------------------------------------ */
+/* Percent-bar widget tests                                            */
+/* ------------------------------------------------------------------ */
+
+#if ANSI_TUI_PBAR
+
+void test_pbar_init_no_border(void)
+{
+    char bar_buf[128];
+    tui_pbar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "green" },
+        .bar_width = 10, .label = NULL,
+        .track = ANSI_BAR_LIGHT,
+        .bar_buf = bar_buf, .bar_buf_size = sizeof(bar_buf)
+    };
+    tui_pbar_init(&w);
+    /* Bar should render track characters (light shade) */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x96\x91"));
+    /* Percent text " 0%" should appear */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "0%"));
+}
+
+void test_pbar_init_bordered(void)
+{
+    char bar_buf[128];
+    tui_pbar_t w = {
+        .place = { .row = 2, .col = 3, .border = ANSI_TUI_BORDER,
+                   .color = "green" },
+        .bar_width = 10, .label = "CPU ",
+        .track = ANSI_BAR_LIGHT,
+        .bar_buf = bar_buf, .bar_buf_size = sizeof(bar_buf)
+    };
+    tui_pbar_init(&w);
+    /* Border present */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x95\x94"));
+    /* Label text present */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "CPU "));
+}
+
+void test_pbar_update_50(void)
+{
+    char bar_buf[128];
+    tui_pbar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "green" },
+        .bar_width = 10, .label = NULL,
+        .track = ANSI_BAR_LIGHT,
+        .bar_buf = bar_buf, .bar_buf_size = sizeof(bar_buf)
+    };
+    tui_pbar_init(&w);
+    capture_reset();
+
+    tui_pbar_update(&w, 50, 1);
+    /* Full blocks present */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x96\x88"));
+    /* Percent text */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "50%"));
+    /* Green color code */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[32m"));
+}
+
+void test_pbar_update_100(void)
+{
+    char bar_buf[128];
+    tui_pbar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "cyan" },
+        .bar_width = 10, .label = NULL,
+        .track = ANSI_BAR_LIGHT,
+        .bar_buf = bar_buf, .bar_buf_size = sizeof(bar_buf)
+    };
+    tui_pbar_init(&w);
+    capture_reset();
+
+    tui_pbar_update(&w, 100, 1);
+    /* Percent text "100%" */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "100%"));
+}
+
+void test_pbar_update_clamps(void)
+{
+    char bar_buf[128];
+    tui_pbar_state_t st;
+    const tui_pbar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "green" },
+        .bar_width = 10, .label = NULL,
+        .track = ANSI_BAR_LIGHT,
+        .bar_buf = bar_buf, .bar_buf_size = sizeof(bar_buf),
+        .state = &st
+    };
+    tui_pbar_init(&w);
+
+    tui_pbar_update(&w, 150, 1);
+    TEST_ASSERT_EQUAL_INT(100, st.percent);
+
+    tui_pbar_update(&w, -10, 1);
+    TEST_ASSERT_EQUAL_INT(0, st.percent);
+}
+
+void test_pbar_update_repositions(void)
+{
+    char bar_buf[128];
+    tui_pbar_t w = {
+        .place = { .row = 5, .col = 10, .border = ANSI_TUI_NO_BORDER,
+                   .color = "red" },
+        .bar_width = 15, .label = "X ",
+        .track = ANSI_BAR_LIGHT,
+        .bar_buf = bar_buf, .bar_buf_size = sizeof(bar_buf)
+    };
+    tui_pbar_init(&w);
+    capture_reset();
+
+    tui_pbar_update(&w, 50, 1);
+    /* Cursor at (5, 10 + 2 for label "X ") = (5, 12) */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[5;12H"));
+}
+
+void test_pbar_state_tracks_percent(void)
+{
+    char bar_buf[128];
+    tui_pbar_state_t st;
+    const tui_pbar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "green" },
+        .bar_width = 10, .label = NULL,
+        .track = ANSI_BAR_LIGHT,
+        .bar_buf = bar_buf, .bar_buf_size = sizeof(bar_buf),
+        .state = &st
+    };
+    tui_pbar_init(&w);
+    TEST_ASSERT_EQUAL_INT(0, st.percent);
+
+    tui_pbar_update(&w, 73, 1);
+    TEST_ASSERT_EQUAL_INT(73, st.percent);
+}
+
+void test_pbar_null_widget(void)
+{
+    tui_pbar_init(NULL);
+    tui_pbar_update(NULL, 50, 1);
+    TEST_ASSERT_EQUAL_STRING("", capture_buf);
+}
+
+void test_pbar_disable_blocks_update(void)
+{
+    char bar_buf[128];
+    tui_pbar_state_t st;
+    const tui_pbar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "green" },
+        .bar_width = 10, .label = NULL,
+        .track = ANSI_BAR_LIGHT,
+        .bar_buf = bar_buf, .bar_buf_size = sizeof(bar_buf),
+        .state = &st
+    };
+    tui_pbar_init(&w);
+    tui_pbar_enable(&w, 0);
+
+    capture_reset();
+    tui_pbar_update(&w, 75, 1);
+    /* Disabled — update should produce no output */
+    TEST_ASSERT_EQUAL_INT(0, capture_pos);
+}
+
+void test_pbar_enable_restores(void)
+{
+    char bar_buf[128];
+    tui_pbar_state_t st;
+    const tui_pbar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "green" },
+        .bar_width = 10, .label = NULL,
+        .track = ANSI_BAR_LIGHT,
+        .bar_buf = bar_buf, .bar_buf_size = sizeof(bar_buf),
+        .state = &st
+    };
+    tui_pbar_init(&w);
+    tui_pbar_update(&w, 50, 1);
+    tui_pbar_enable(&w, 0);
+
+    capture_reset();
+    tui_pbar_enable(&w, 1);
+    /* Re-enabled — should re-render with stored value, green color */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\x1b[32m"));
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "50%"));
+}
+
+void test_pbar_force0_skips_same(void)
+{
+    char bar_buf[128];
+    tui_pbar_state_t st;
+    const tui_pbar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "green" },
+        .bar_width = 10, .track = ANSI_BAR_LIGHT,
+        .bar_buf = bar_buf, .bar_buf_size = sizeof(bar_buf), .state = &st
+    };
+    tui_pbar_init(&w);
+    tui_pbar_update(&w, 50, 1);
+    capture_reset();
+    tui_pbar_update(&w, 50, 0);
+    TEST_ASSERT_EQUAL_INT(0, capture_pos);
+}
+
+void test_pbar_force0_redraws_on_change(void)
+{
+    char bar_buf[128];
+    tui_pbar_state_t st;
+    const tui_pbar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "green" },
+        .bar_width = 10, .track = ANSI_BAR_LIGHT,
+        .bar_buf = bar_buf, .bar_buf_size = sizeof(bar_buf), .state = &st
+    };
+    tui_pbar_init(&w);
+    tui_pbar_update(&w, 50, 1);
+    capture_reset();
+    tui_pbar_update(&w, 60, 0);
+    TEST_ASSERT_TRUE(capture_pos > 0);
+}
+
+void test_pbar_force1_redraws_same(void)
+{
+    char bar_buf[128];
+    tui_pbar_state_t st;
+    const tui_pbar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "green" },
+        .bar_width = 10, .track = ANSI_BAR_LIGHT,
+        .bar_buf = bar_buf, .bar_buf_size = sizeof(bar_buf), .state = &st
+    };
+    tui_pbar_init(&w);
+    tui_pbar_update(&w, 50, 1);
+    capture_reset();
+    tui_pbar_update(&w, 50, 1);
+    TEST_ASSERT_TRUE(capture_pos > 0);
+}
+
+#endif /* ANSI_TUI_PBAR */
+
+/* ------------------------------------------------------------------ */
 /* Status widget tests                                                 */
 /* ------------------------------------------------------------------ */
 
@@ -1788,6 +2030,7 @@ static void print_config(void)
     printf(" FRAME=%d", ANSI_TUI_FRAME);
     printf(" LABEL=%d", ANSI_TUI_LABEL);
     printf(" BAR=%d", ANSI_TUI_BAR);
+    printf(" PBAR=%d", ANSI_TUI_PBAR);
     printf(" STATUS=%d", ANSI_TUI_STATUS);
     printf(" TEXT=%d", ANSI_TUI_TEXT);
     printf(" CHECK=%d", ANSI_TUI_CHECK);
@@ -1895,6 +2138,20 @@ int main(void)
     RUN_TEST(test_bar_null_widget);
 #endif
 
+    /* Percent-bar widget */
+#if ANSI_TUI_PBAR
+    RUN_TEST(test_pbar_init_no_border);
+    RUN_TEST(test_pbar_init_bordered);
+    RUN_TEST(test_pbar_update_50);
+    RUN_TEST(test_pbar_update_100);
+    RUN_TEST(test_pbar_update_clamps);
+    RUN_TEST(test_pbar_update_repositions);
+    RUN_TEST(test_pbar_state_tracks_percent);
+    RUN_TEST(test_pbar_null_widget);
+    RUN_TEST(test_pbar_disable_blocks_update);
+    RUN_TEST(test_pbar_enable_restores);
+#endif
+
     /* Status widget */
 #if ANSI_TUI_STATUS
     RUN_TEST(test_status_init_no_border);
@@ -1988,6 +2245,11 @@ int main(void)
     RUN_TEST(test_bar_force0_skips_same);
     RUN_TEST(test_bar_force0_redraws_on_change);
     RUN_TEST(test_bar_force0_redraws_on_range_change);
+#endif
+#if ANSI_TUI_PBAR
+    RUN_TEST(test_pbar_force0_skips_same);
+    RUN_TEST(test_pbar_force0_redraws_on_change);
+    RUN_TEST(test_pbar_force1_redraws_same);
 #endif
 #if ANSI_TUI_METRIC
     RUN_TEST(test_metric_force0_skips_same);

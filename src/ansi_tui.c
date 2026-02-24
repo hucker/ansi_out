@@ -20,15 +20,15 @@
 /* ------------------------------------------------------------------ */
 
 #define ANSI_TUI_ANY_ (ANSI_TUI_FRAME || ANSI_TUI_LABEL || ANSI_TUI_BAR || \
-                        ANSI_TUI_STATUS || ANSI_TUI_TEXT || ANSI_TUI_CHECK || \
-                        ANSI_TUI_METRIC)
+                        ANSI_TUI_PBAR  || ANSI_TUI_STATUS || ANSI_TUI_TEXT || \
+                        ANSI_TUI_CHECK || ANSI_TUI_METRIC)
 
 /* Widgets that use tui_widget_goto() (all content widgets except metric) */
-#define ANSI_TUI_GOTO_ (ANSI_TUI_LABEL || ANSI_TUI_BAR || \
+#define ANSI_TUI_GOTO_ (ANSI_TUI_LABEL || ANSI_TUI_BAR || ANSI_TUI_PBAR || \
                          ANSI_TUI_STATUS || ANSI_TUI_TEXT || ANSI_TUI_CHECK)
 
 /* Widgets that use tui_pad() */
-#define ANSI_TUI_PAD_ (ANSI_TUI_LABEL || ANSI_TUI_STATUS || \
+#define ANSI_TUI_PAD_ (ANSI_TUI_LABEL || ANSI_TUI_PBAR || ANSI_TUI_STATUS || \
                         ANSI_TUI_TEXT || ANSI_TUI_METRIC)
 
 /* Widgets that use tui_center_col() */
@@ -532,6 +532,97 @@ void tui_bar_enable(const tui_bar_t *w, int enabled)
 }
 
 #endif /* ANSI_TUI_BAR */
+
+/* ------------------------------------------------------------------ */
+/* Percent-bar widget                                                  */
+/* ------------------------------------------------------------------ */
+
+#if ANSI_TUI_PBAR
+
+/** Compute interior width for a percent-bar widget (label + bar + " 100%"). */
+static int pbar_interior_width(const tui_pbar_t *w)
+{
+    int label_len = w->label ? (int)strlen(w->label) : 0;
+    return label_len + w->bar_width + 5;   /* bar + " 100%" max */
+}
+
+void tui_pbar_init(const tui_pbar_t *w)
+{
+    if (!w) return;
+
+    if (w->state) w->state->enabled = 1;
+
+    int iw = pbar_interior_width(w);
+    tui_widget_chrome(&w->place, w->place.col, iw, w->place.color, NULL, NULL);
+    if (w->label) ansi_puts(w->label);
+
+    /* Draw empty bar (0%) */
+    tui_pbar_update(w, 0, 1);
+}
+
+void tui_pbar_update(const tui_pbar_t *w, int percent, int force)
+{
+    if (!w || !w->bar_buf) return;
+    if (w->state && !w->state->enabled) return;
+
+    int pct = percent < 0 ? 0 : percent > 100 ? 100 : percent;
+
+    if (!force && w->state && w->state->percent == pct) return;
+
+    if (w->state) w->state->percent = pct;
+
+    ansi_bar_percent(w->bar_buf, w->bar_buf_size,
+                     w->place.color, w->bar_width, w->track, pct);
+
+    /* Position cursor at bar area (after label) */
+    int ir, ic;
+    tui_place_goto(&w->place, w->place.col, &ir, &ic);
+    int label_len = w->label ? (int)strlen(w->label) : 0;
+    int bar_col = ic + label_len;
+
+    /* Clear bar + percent area, then rewrite */
+    tui_goto(ir, bar_col);
+    tui_pad(w->bar_width + 5);
+
+    tui_goto(ir, bar_col);
+    ansi_print("%s", w->bar_buf);
+}
+
+void tui_pbar_enable(const tui_pbar_t *w, int enabled)
+{
+    if (!w || !w->state) return;
+    w->state->enabled = enabled;
+
+    int iw = pbar_interior_width(w);
+    const char *color = enabled ? w->place.color : "dim";
+    int ir, ic;
+    tui_widget_chrome(&w->place, w->place.col, iw, color, &ir, &ic);
+    if (w->label) {
+        if (!enabled)
+            ansi_print("[dim]%s[/]", w->label);
+        else
+            ansi_puts(w->label);
+    }
+
+    if (enabled) {
+        /* Re-render the bar with stored percent */
+        w->state->enabled = 1;   /* allow update through */
+        tui_pbar_update(w, w->state->percent, 1);
+    } else {
+        /* Draw a dim empty track */
+        if (w->bar_buf) {
+            ansi_bar_percent(w->bar_buf, w->bar_buf_size,
+                             "dim", w->bar_width, w->track, 0);
+            int label_len = w->label ? (int)strlen(w->label) : 0;
+            tui_goto(ir, ic + label_len);
+            tui_pad(w->bar_width + 5);
+            tui_goto(ir, ic + label_len);
+            ansi_print("%s", w->bar_buf);
+        }
+    }
+}
+
+#endif /* ANSI_TUI_PBAR */
 
 /* ------------------------------------------------------------------ */
 /* Status widget                                                       */

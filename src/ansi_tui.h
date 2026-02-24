@@ -25,6 +25,7 @@
  * | ANSI_TUI_BAR     | 1       | Bar graph widget (requires ANSI_PRINT_BAR) |
  * | ANSI_TUI_STATUS  | 1       | Status text field                        |
  * | ANSI_TUI_TEXT    | 1       | Generic text widget                      |
+ * | ANSI_TUI_PBAR    | 1       | Percent bar widget (requires ANSI_PRINT_BAR) |
  * | ANSI_TUI_CHECK   | 1       | Check/cross indicator (requires ANSI_PRINT_EMOJI) |
  * | ANSI_TUI_METRIC  | 1       | Threshold-based metric gauge             |
  */
@@ -60,6 +61,18 @@
 #if ANSI_TUI_BAR && !ANSI_PRINT_BAR
 #  undef  ANSI_TUI_BAR
 #  define ANSI_TUI_BAR      0
+#endif
+
+/** @def ANSI_TUI_PBAR
+ *  Enable the percent-bar widget. Requires ANSI_PRINT_BAR for ansi_bar_percent().
+ *  Default: 1 (0 if ANSI_PRINT_MINIMAL). */
+#ifndef ANSI_TUI_PBAR
+#  define ANSI_TUI_PBAR     ANSI_PRINT_DEFAULT_
+#endif
+/* Force off if the underlying bar renderer is disabled */
+#if ANSI_TUI_PBAR && !ANSI_PRINT_BAR
+#  undef  ANSI_TUI_PBAR
+#  define ANSI_TUI_PBAR     0
 #endif
 
 /** @def ANSI_TUI_STATUS
@@ -287,6 +300,43 @@ void tui_bar_update(const tui_bar_t *w, double value, double min, double max,
 void tui_bar_enable(const tui_bar_t *w, int enabled);
 
 #endif /* ANSI_TUI_BAR */
+
+/* ------------------------------------------------------------------ */
+/* Percent-bar widget                                                  */
+/* ------------------------------------------------------------------ */
+
+#if ANSI_TUI_PBAR
+
+/** Mutable state for a percent-bar widget (lives in RAM). */
+typedef struct {
+    int enabled; /**< Nonzero = active, 0 = disabled (drawn dim). */
+    int percent; /**< Current percent value (0-100). */
+} tui_pbar_state_t;
+
+/**
+ * Percent-bar widget: positioned bar graph with " XX%" suffix.
+ *
+ * Wraps ansi_bar_percent() — takes a single integer percent (0-100)
+ * instead of value/min/max.  The " XX%" text is appended automatically
+ * by ansi_bar_percent().  The @c bar_width field specifies only the
+ * bar character cells; the total interior width is bar_width + 5
+ * (for " 100%") plus any label prefix.
+ */
+typedef struct {
+    tui_placement_t    place;        /**< Common positioning (row, col, border, color, parent). */
+    int                bar_width;    /**< Bar width in character cells (excludes percent text). */
+    const char        *label;        /**< Optional label prefix, or NULL. */
+    ansi_bar_track_t   track;        /**< Track character for unfilled cells. */
+    char              *bar_buf;      /**< Caller-provided buffer for ansi_bar_percent(). */
+    size_t             bar_buf_size; /**< Size of bar_buf in bytes. */
+    tui_pbar_state_t  *state;        /**< Mutable state in RAM, or NULL. */
+} tui_pbar_t;
+
+void tui_pbar_init(const tui_pbar_t *w);
+void tui_pbar_update(const tui_pbar_t *w, int percent, int force);
+void tui_pbar_enable(const tui_pbar_t *w, int enabled);
+
+#endif /* ANSI_TUI_PBAR */
 
 /* ------------------------------------------------------------------ */
 /* Status widget                                                       */

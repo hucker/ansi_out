@@ -2,7 +2,7 @@
 
 ![version](https://img.shields.io/badge/version-1.2.0-blue "Library version")
 ![license](https://img.shields.io/badge/license-MIT-green "MIT License")
-![test-full](https://img.shields.io/badge/test--full-247%20passed-brightgreen "All features enabled")
+![test-full](https://img.shields.io/badge/test--full-260%20passed-brightgreen "All features enabled")
 ![test-minimal](https://img.shields.io/badge/test--minimal-69%20passed-brightgreen "All optional features disabled")
 ![C standard](https://img.shields.io/badge/C-C99-orange "Requires C99 compiler")
 
@@ -246,14 +246,15 @@ following the same pattern — all default to enabled, all disabled by
 | `ANSI_TUI_FRAME`   | 1       | Frame container (border box)                        |
 | `ANSI_TUI_LABEL`   | 1       | Label widget ("Name: value")                        |
 | `ANSI_TUI_BAR`     | 1       | Bar graph widget (requires `ANSI_PRINT_BAR`)        |
+| `ANSI_TUI_PBAR`    | 1       | Percent bar widget (requires `ANSI_PRINT_BAR`)      |
 | `ANSI_TUI_STATUS`  | 1       | Status text field                                   |
 | `ANSI_TUI_TEXT`    | 1       | Generic text widget                                 |
 | `ANSI_TUI_CHECK`   | 1       | Check/cross indicator (requires `ANSI_PRINT_EMOJI`) |
 | `ANSI_TUI_METRIC`  | 1       | Threshold-based metric gauge                        |
 
-`ANSI_TUI_BAR` is forced off when `ANSI_PRINT_BAR=0` (no underlying bar
-renderer).  `ANSI_TUI_CHECK` is forced off when `ANSI_PRINT_EMOJI=0` (no emoji
-shortcode support).
+`ANSI_TUI_BAR` and `ANSI_TUI_PBAR` are forced off when `ANSI_PRINT_BAR=0` (no
+underlying bar renderer).  `ANSI_TUI_CHECK` is forced off when
+`ANSI_PRINT_EMOJI=0` (no emoji shortcode support).
 
 The `tui_frame_t` struct and `tui_border_t` enum are always defined regardless
 of flags, since all widget types reference them via their `parent` pointer.
@@ -365,13 +366,14 @@ helpers, etc.), so individual deltas do not sum to the full build delta.
 | ------------------ | ------: | ------: | -------------------------------- |
 | *ansi_print lib*   | 18829 B |       — | Full library + screen helpers    |
 | `ANSI_TUI_FRAME`   | 20353 B | +1524 B | Border container, no content     |
-| `ANSI_TUI_CHECK`   | 20896 B | +2067 B | Boolean indicator with emoji     |
+| `ANSI_TUI_CHECK`   | 20916 B | +2087 B | Boolean indicator with emoji     |
 | `ANSI_TUI_LABEL`   | 20970 B | +2141 B | "Name: value" with padding       |
 | `ANSI_TUI_STATUS`  | 21039 B | +2210 B | Single-line text field           |
 | `ANSI_TUI_TEXT`    | 21039 B | +2210 B | Generic text with fill/center    |
-| `ANSI_TUI_BAR`     | 21047 B | +2218 B | Bar graph wrapper (`ansi_bar`)   |
-| `ANSI_TUI_METRIC`  | 21538 B | +2709 B | Threshold gauge with zone colors |
-| **Full TUI build** | 26145 B | +7316 B | All widgets enabled              |
+| `ANSI_TUI_BAR`     | 21135 B | +2306 B | Bar graph wrapper (`ansi_bar`)   |
+| `ANSI_TUI_PBAR`    | 21232 B | +2403 B | Percent bar (`ansi_bar_percent`) |
+| `ANSI_TUI_METRIC`  | 21599 B | +2770 B | Threshold gauge with zone colors |
+| **Full TUI build** | 27249 B | +8420 B | All widgets enabled              |
 
 > Content widgets (all except Frame) share drawing primitives (`draw_border`,
 > `resolve`, `pad`, `center`), so the first content widget pays for the shared
@@ -807,8 +809,14 @@ void ansi_set_bg(const char *color);
 /* Rich-style printf with [tag] markup */
 void ansi_print(const char *fmt, ...);
 
+/* va_list variant of ansi_print */
+void ansi_vprint(const char *fmt, va_list ap);
+
 /* Printf into buffer without emitting -- returns formatted string */
 const char *ansi_format(const char *fmt, ...);
+
+/* Direct access to the format buffer (for custom formatting) */
+char *ansi_get_buf(size_t *out_size);
 
 /* Rich-style output for static strings (no printf overhead) */
 void ansi_puts(const char *s);
@@ -834,6 +842,67 @@ const char *ansi_bar_percent(char *buf, size_t buf_size,
                              ansi_bar_track_t track, int percent);
 ```
 
+### TUI API
+
+Screen helpers (always available):
+
+```c
+void tui_cls(void);                      /* Clear screen */
+void tui_goto(int row, int col);         /* Position cursor (1-based) */
+void tui_cursor_hide(void);
+void tui_cursor_show(void);
+```
+
+Widget lifecycle — each widget type follows the same init/update/enable
+pattern.  Widgets with numeric or boolean state accept a `force` parameter:
+`force=1` always redraws, `force=0` skips redraw when the value is unchanged.
+
+```c
+/* Frame container (ANSI_TUI_FRAME) */
+void tui_frame_init(const tui_frame_t *f);
+
+/* Label: "Name: value" (ANSI_TUI_LABEL) */
+void tui_label_init(const tui_label_t *w);
+void tui_label_update(const tui_label_t *w, const char *fmt, ...);
+void tui_label_enable(const tui_label_t *w, int enabled);
+
+/* Bar graph widget (ANSI_TUI_BAR, requires ANSI_PRINT_BAR) */
+void tui_bar_init(const tui_bar_t *w);
+void tui_bar_update(const tui_bar_t *w, double value, double min, double max,
+                    int force);
+void tui_bar_enable(const tui_bar_t *w, int enabled);
+
+/* Percent bar widget (ANSI_TUI_PBAR, requires ANSI_PRINT_BAR) */
+void tui_pbar_init(const tui_pbar_t *w);
+void tui_pbar_update(const tui_pbar_t *w, int percent, int force);
+void tui_pbar_enable(const tui_pbar_t *w, int enabled);
+
+/* Status text field (ANSI_TUI_STATUS) */
+void tui_status_init(const tui_status_t *w);
+void tui_status_update(const tui_status_t *w, const char *fmt, ...);
+void tui_status_enable(const tui_status_t *w, int enabled);
+
+/* Generic text widget (ANSI_TUI_TEXT) */
+void tui_text_init(const tui_text_t *w);
+void tui_text_update(const tui_text_t *w, const char *fmt, ...);
+void tui_text_enable(const tui_text_t *w, int enabled);
+
+/* Check indicator (ANSI_TUI_CHECK, requires ANSI_PRINT_EMOJI) */
+void tui_check_init(const tui_check_t *w, int state);
+void tui_check_update(const tui_check_t *w, int state, int force);
+void tui_check_toggle(const tui_check_t *w);
+void tui_check_enable(const tui_check_t *w, int enabled);
+
+/* Threshold metric gauge (ANSI_TUI_METRIC) */
+void tui_metric_init(const tui_metric_t *w);
+void tui_metric_update(const tui_metric_t *w, double value, int force);
+void tui_metric_enable(const tui_metric_t *w, int enabled);
+```
+
+All widgets use `tui_placement_t` for positioning (row, col, border, color,
+parent).  Negative row/col values position from the end of the parent frame.
+Set `col=0` to center, `width=-1` to fill the parent.
+
 ## CLI Tool
 
 The project includes a command-line tool for testing markup from the shell.
@@ -847,12 +916,13 @@ make ansiprint
 ### Usage
 
 ```console
-ansiprint [--demo] [<markup string> ...]
+ansiprint [--demo | --tui-demo] [<markup string> ...]
 ```
 
-### Feature Demo
+### Feature Demos
 
-Run `ansiprint --demo` to see all features in action (output shown at top of this page).
+Run `ansiprint --demo` to see the markup features or `ansiprint --tui-demo`
+to see the positioned widget layer (output shown at top of this page).
 
 ### Examples
 
@@ -918,9 +988,9 @@ Build config: EMOJI=1 EXTENDED_EMOJI=1 EXTENDED_COLORS=1 BRIGHT_COLORS=1 STYLES=
 
 >> build/test_tui
 Build config: BAR=1 BANNER=1 WINDOW=1 EMOJI=1
-  TUI flags: FRAME=1 LABEL=1 BAR=1 STATUS=1 TEXT=1 CHECK=1 METRIC=1
+  TUI flags: FRAME=1 LABEL=1 BAR=1 PBAR=1 STATUS=1 TEXT=1 CHECK=1 METRIC=1
 ...
-102 Tests 0 Failures 0 Ignored
+115 Tests 0 Failures 0 Ignored
 
 $ make test-minimal
 >> build/test_cprint_minimal
@@ -930,7 +1000,7 @@ Build config: EMOJI=0 EXTENDED_EMOJI=0 EXTENDED_COLORS=0 BRIGHT_COLORS=0 STYLES=
 
 >> build/test_tui_minimal
 Build config: BAR=0 BANNER=0 WINDOW=0 EMOJI=0
-  TUI flags: FRAME=0 LABEL=0 BAR=0 STATUS=0 TEXT=0 CHECK=0 METRIC=0
+  TUI flags: FRAME=0 LABEL=0 BAR=0 PBAR=0 STATUS=0 TEXT=0 CHECK=0 METRIC=0
 ...
 5 Tests 0 Failures 0 Ignored
 ```
