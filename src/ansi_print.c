@@ -1120,6 +1120,13 @@ static const char *ansi_vformat(const char *fmt, va_list ap)
     return m_buf;
 }
 
+/** Access the shared format buffer */
+char *ansi_get_buf(size_t *out_size)
+{
+    if (out_size) *out_size = m_buf_size;
+    return m_buf;
+}
+
 /** Printf into shared buffer and return pointer — does not emit */
 const char *ansi_format(const char *fmt, ...)
 {
@@ -1138,6 +1145,12 @@ void ansi_print(const char *fmt, ...)
     const char *result = ansi_vformat(fmt, ap);
     va_end(ap);
     ansi_emit(result);
+}
+
+/** va_list variant of ansi_print — format and emit with markup processing */
+void ansi_vprint(const char *fmt, va_list ap)
+{
+    ansi_emit(ansi_vformat(fmt, ap));
 }
 
 #if ANSI_PRINT_BANNER

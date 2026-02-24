@@ -201,6 +201,7 @@
 #  define ANSI_PRINT_BOX_STYLE        ANSI_BOX_DOUBLE
 #endif
 
+#include <stdarg.h>     // va_list
 #include <stddef.h>     // size_t
 
 #ifdef __cplusplus
@@ -510,6 +511,17 @@ void ansi_set_bg(const char *color);
 void ansi_print(const char *fmt, ...);
 
 /**
+ * @brief va_list variant of ansi_print().
+ *
+ * Identical to ansi_print() but accepts a va_list instead of variadic
+ * arguments.  Useful for wrapper functions that forward format strings.
+ *
+ * @param fmt  Printf-style format string with optional markup tags.
+ * @param ap   Argument list initialized with va_start().
+ */
+void ansi_vprint(const char *fmt, va_list ap);
+
+/**
  * @brief Format a string with Rich-style inline markup but do not emit it.
  *
  * Performs printf-style formatting into the internal buffer and returns a
@@ -525,6 +537,19 @@ void ansi_print(const char *fmt, ...);
  *          share the same internal buffer.
  */
 const char *ansi_format(const char *fmt, ...);
+
+/**
+ * @brief Access the shared format buffer used by ansi_print/ansi_format.
+ *
+ * Returns a pointer to the internal format buffer and its size.
+ * The caller may write into this buffer (e.g. with snprintf) and then
+ * pass the result to ansi_puts().  The buffer is only valid until the
+ * next call to ansi_print(), ansi_format(), or ansi_banner().
+ *
+ * @param out_size  If non-NULL, receives the buffer size in bytes.
+ * @return Pointer to the internal buffer, or NULL if not initialized.
+ */
+char *ansi_get_buf(size_t *out_size);
 
 /**
  * @brief Output a static string with Rich-style inline markup tags.
