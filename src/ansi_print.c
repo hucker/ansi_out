@@ -238,16 +238,18 @@ typedef struct {
    length mismatches immediately without calling strlen on every entry. */
 #define EMOJI(n, u)  { (n), sizeof(n)-1, (u) }
 
+/* NOTE:Capitalized emoji names indicate 1 character width */
+
 /* Grouped by category for readability, not sorted alphabetically.
    Lookup is linear O(n) — fast enough for this table size. and
    the fact that we won't have that many emojis*/
 static const EmojiEntry EMOJIS[] = {
     EMOJI("check",          "\xe2\x9c\x85"      ),  /* ✅ U+2705 */
     EMOJI("cross",          "\xe2\x9d\x8c"      ),  /* ❌ U+274C */
-    EMOJI("warning",        "\xe2\x9a\xa0"      ),  /* ⚠  U+26A0 */
-    EMOJI("info",           "\xe2\x84\xb9"      ),  /* ℹ  U+2139 */
-    EMOJI("arrow",          "\xe2\x9e\xa1"      ),  /* ➡  U+27A1 */
-    EMOJI("gear",           "\xe2\x9a\x99"      ),  /* ⚙  U+2699 */
+    EMOJI("Warning",        "\xe2\x9a\xa0"      ),  /* ⚠  U+26A0  (1-cell) */
+    EMOJI("Info",           "\xe2\x84\xb9"      ),  /* ℹ  U+2139  (1-cell) */
+    EMOJI("Arrow",          "\xe2\x9e\xa1"      ),  /* ➡  U+27A1  (1-cell) */
+    EMOJI("Gear",           "\xe2\x9a\x99"      ),  /* ⚙  U+2699  (1-cell) */
     EMOJI("clock",          "\xe2\x8f\xb0"      ),  /* ⏰ U+23F0 */
     EMOJI("hourglass",      "\xe2\x8c\x9b"      ),  /* ⌛ U+231B */
     EMOJI("thumbs_up",      "\xf0\x9f\x91\x8d"  ),  /* 👍 U+1F44D */
@@ -293,7 +295,7 @@ static const EmojiEntry EMOJIS[] = {
     EMOJI("pray",           "\xf0\x9f\x99\x8f"  ),  /* 🙏 U+1F64F */
     EMOJI("muscle",         "\xf0\x9f\x92\xaa"  ),  /* 💪 U+1F4AA */
     EMOJI("ok_hand",        "\xf0\x9f\x91\x8c"  ),  /* 👌 U+1F44C */
-    EMOJI("victory",        "\xe2\x9c\x8c"      ),  /* ✌  U+270C */
+    EMOJI("Victory",        "\xe2\x9c\x8c"      ),  /* ✌  U+270C */
     EMOJI("point_up",       "\xf0\x9f\x91\x86"  ),  /* 👆 U+1F446 */
     EMOJI("point_down",     "\xf0\x9f\x91\x87"  ),  /* 👇 U+1F447 */
     EMOJI("point_left",     "\xf0\x9f\x91\x88"  ),  /* 👈 U+1F448 */
@@ -303,32 +305,32 @@ static const EmojiEntry EMOJIS[] = {
 
     /* Check & Cross variants */
     EMOJI("green_check",    "\xe2\x9c\x85"      ),  /* ✅ U+2705 */
-    EMOJI("check_box",      "\xe2\x98\x91"      ),  /* ☑  U+2611 */
-    EMOJI("ballot_x",       "\xe2\x9c\x97"      ),  /* ✗  U+2717 */
-    EMOJI("heavy_x",        "\xe2\x9c\x98"      ),  /* ✘  U+2718 */
+    EMOJI("Check_box",      "\xe2\x98\x91"      ),  /* ☑  U+2611 */
+    EMOJI("Ballot_x",       "\xe2\x9c\x97"      ),  /* ✗  U+2717 */
+    EMOJI("Heavy_x",        "\xe2\x9c\x98"      ),  /* ✘  U+2718 */
     EMOJI("cross_box",      "\xe2\x9d\x8e"      ),  /* ❎ U+274E */
 
     /* Hearts & Symbols */
-    EMOJI("heart",          "\xe2\x9d\xa4"      ),  /* ❤  U+2764 */
+    EMOJI("Heart",          "\xe2\x9d\xa4"      ),  /* ❤  U+2764 */
     EMOJI("broken_heart",   "\xf0\x9f\x92\x94"  ),  /* 💔 U+1F494 */
     EMOJI("question",       "\xe2\x9d\x93"      ),  /* ❓ U+2753 */
     EMOJI("exclamation",    "\xe2\x9d\x97"      ),  /* ❗ U+2757 */
-    EMOJI("bangbang",       "\xe2\x80\xbc"      ),  /* ‼  U+203C */
+    EMOJI("Bangbang",       "\xe2\x80\xbc"      ),  /* ‼  U+203C  (1-cell) */
     EMOJI("plus",           "\xe2\x9e\x95"      ),  /* ➕ U+2795 */
     EMOJI("minus",          "\xe2\x9e\x96"      ),  /* ➖ U+2796 */
-    EMOJI("multiply",       "\xe2\x9c\x96"      ),  /* ✖  U+2716 */
+    EMOJI("Multiply",       "\xe2\x9c\x96"      ),  /* ✖  U+2716 */
     EMOJI("divide",         "\xe2\x9e\x97"      ),  /* ➗ U+2797 */
-    EMOJI("infinity",       "\xe2\x99\xbe"      ),  /* ♾  U+267E */
-    EMOJI("recycle",        "\xe2\x99\xbb"      ),  /* ♻  U+267B */
-    EMOJI("copyright",      "\xc2\xa9"          ),  /* ©  U+00A9 */
+    EMOJI("Infinity",       "\xe2\x99\xbe"      ),  /* ♾  U+267E */
+    EMOJI("Recycle",        "\xe2\x99\xbb"      ),  /* ♻  U+267B */
+    EMOJI("Copyright",      "\xc2\xa9"          ),  /* ©  U+00A9  (1-cell) */
 
     /* Arrows & Navigation */
-    EMOJI("arrow_up",       "\xe2\xac\x86"      ),  /* ⬆  U+2B06 */
-    EMOJI("arrow_down",     "\xe2\xac\x87"      ),  /* ⬇  U+2B07 */
-    EMOJI("arrow_left",     "\xe2\xac\x85"      ),  /* ⬅  U+2B05 */
-    EMOJI("arrow_right",    "\xe2\x9e\xa1"      ),  /* ➡  U+27A1 */
-    EMOJI("arrow_up_down",  "\xe2\x86\x95"      ),  /* ↕  U+2195 */
-    EMOJI("left_right",     "\xe2\x86\x94"      ),  /* ↔  U+2194 */
+    EMOJI("Arrow_up",       "\xe2\xac\x86"      ),  /* ⬆  U+2B06 */
+    EMOJI("Arrow_down",     "\xe2\xac\x87"      ),  /* ⬇  U+2B07 */
+    EMOJI("Arrow_left",     "\xe2\xac\x85"      ),  /* ⬅  U+2B05 */
+    EMOJI("Arrow_right",    "\xe2\x9e\xa1"      ),  /* ➡  U+27A1  (1-cell) */
+    EMOJI("Arrow_up_down",  "\xe2\x86\x95"      ),  /* ↕  U+2195  (1-cell) */
+    EMOJI("Left_right",     "\xe2\x86\x94"      ),  /* ↔  U+2194  (1-cell) */
     EMOJI("back",           "\xf0\x9f\x94\x99"  ),  /* 🔙 U+1F519 */
     EMOJI("forward",        "\xf0\x9f\x94\x9c"  ),  /* 🔜 U+1F51C */
     EMOJI("refresh",        "\xf0\x9f\x94\x84"  ),  /* 🔄 U+1F504 */
@@ -337,31 +339,31 @@ static const EmojiEntry EMOJIS[] = {
     EMOJI("key",            "\xf0\x9f\x94\x91"  ),  /* 🔑 U+1F511 */
     EMOJI("lock",           "\xf0\x9f\x94\x92"  ),  /* 🔒 U+1F512 */
     EMOJI("unlock",         "\xf0\x9f\x94\x93"  ),  /* 🔓 U+1F513 */
-    EMOJI("shield",         "\xf0\x9f\x9b\xa1"  ),  /* 🛡  U+1F6E1 */
+    EMOJI("Shield",         "\xf0\x9f\x9b\xa1"  ),  /* 🛡  U+1F6E1 */
     EMOJI("bomb",           "\xf0\x9f\x92\xa3"  ),  /* 💣 U+1F4A3 */
     EMOJI("hammer",         "\xf0\x9f\x94\xa8"  ),  /* 🔨 U+1F528 */
-    EMOJI("scissors",       "\xe2\x9c\x82"      ),  /* ✂  U+2702 */
-    EMOJI("pencil",         "\xe2\x9c\x8f"      ),  /* ✏  U+270F */
-    EMOJI("pen",            "\xf0\x9f\x96\x8a"  ),  /* 🖊  U+1F58A */
+    EMOJI("Scissors",       "\xe2\x9c\x82"      ),  /* ✂  U+2702 */
+    EMOJI("Pencil",         "\xe2\x9c\x8f"      ),  /* ✏  U+270F */
+    EMOJI("Pen",            "\xf0\x9f\x96\x8a"  ),  /* 🖊  U+1F58A */
     EMOJI("magnifier",      "\xf0\x9f\x94\x8d"  ),  /* 🔍 U+1F50D */
     EMOJI("flashlight",     "\xf0\x9f\x94\xa6"  ),  /* 🔦 U+1F526 */
     EMOJI("clipboard",      "\xf0\x9f\x93\x8b"  ),  /* 📋 U+1F4CB */
     EMOJI("calendar",       "\xf0\x9f\x93\x85"  ),  /* 📅 U+1F4C5 */
-    EMOJI("envelope",       "\xe2\x9c\x89"      ),  /* ✉  U+2709 */
+    EMOJI("Envelope",       "\xe2\x9c\x89"      ),  /* ✉  U+2709 */
     EMOJI("phone",          "\xf0\x9f\x93\xb1"  ),  /* 📱 U+1F4F1 */
     EMOJI("laptop",         "\xf0\x9f\x92\xbb"  ),  /* 💻 U+1F4BB */
-    EMOJI("desktop",        "\xf0\x9f\x96\xa5"  ),  /* 🖥  U+1F5A5 */
-    EMOJI("printer",        "\xf0\x9f\x96\xa8"  ),  /* 🖨  U+1F5A8 */
+    EMOJI("Desktop",        "\xf0\x9f\x96\xa5"  ),  /* 🖥  U+1F5A5 */
+    EMOJI("Printer",        "\xf0\x9f\x96\xa8"  ),  /* 🖨  U+1F5A8 */
     EMOJI("folder",         "\xf0\x9f\x93\x81"  ),  /* 📁 U+1F4C1 */
     EMOJI("file",           "\xf0\x9f\x93\x84"  ),  /* 📄 U+1F4C4 */
-    EMOJI("trash",          "\xf0\x9f\x97\x91"  ),  /* 🗑  U+1F5D1 */
+    EMOJI("Trash",          "\xf0\x9f\x97\x91"  ),  /* 🗑  U+1F5D1 */
 
     /* Nature & Weather */
-    EMOJI("sun",            "\xe2\x98\x80"      ),  /* ☀  U+2600 */
+    EMOJI("Sun",            "\xe2\x98\x80"      ),  /* ☀  U+2600 */
     EMOJI("moon",           "\xf0\x9f\x8c\x99"  ),  /* 🌙 U+1F319 */
-    EMOJI("cloud",          "\xe2\x98\x81"      ),  /* ☁  U+2601 */
-    EMOJI("rain",           "\xf0\x9f\x8c\xa7"  ),  /* 🌧  U+1F327 */
-    EMOJI("snow",           "\xe2\x9d\x84"      ),  /* ❄  U+2744 */
+    EMOJI("Cloud",          "\xe2\x98\x81"      ),  /* ☁  U+2601 */
+    EMOJI("Rain",           "\xf0\x9f\x8c\xa7"  ),  /* 🌧  U+1F327 */
+    EMOJI("Snow",           "\xe2\x9d\x84"      ),  /* ❄  U+2744 */
     EMOJI("earth",          "\xf0\x9f\x8c\x8d"  ),  /* 🌍 U+1F30D */
     EMOJI("tree",           "\xf0\x9f\x8c\xb3"  ),  /* 🌳 U+1F333 */
     EMOJI("leaf",           "\xf0\x9f\x8d\x83"  ),  /* 🍃 U+1F343 */
@@ -384,12 +386,12 @@ static const EmojiEntry EMOJIS[] = {
     EMOJI("butterfly",      "\xf0\x9f\xa6\x8b"  ),  /* 🦋 U+1F98B */
     EMOJI("bee",            "\xf0\x9f\x90\x9d"  ),  /* 🐝 U+1F41D */
     EMOJI("ant",            "\xf0\x9f\x90\x9c"  ),  /* 🐜 U+1F41C */
-    EMOJI("spider",         "\xf0\x9f\x95\xb7"  ),  /* 🕷  U+1F577 */
+    EMOJI("Spider",         "\xf0\x9f\x95\xb7"  ),  /* 🕷  U+1F577 */
     EMOJI("unicorn",        "\xf0\x9f\xa6\x84"  ),  /* 🦄 U+1F984 */
 
     /* Travel & Transport */
     EMOJI("car",            "\xf0\x9f\x9a\x97"  ),  /* 🚗 U+1F697 */
-    EMOJI("airplane",       "\xe2\x9c\x88"      ),  /* ✈  U+2708 */
+    EMOJI("Airplane",       "\xe2\x9c\x88"      ),  /* ✈  U+2708 */
     EMOJI("ship",           "\xf0\x9f\x9a\xa2"  ),  /* 🚢 U+1F6A2 */
     EMOJI("bicycle",        "\xf0\x9f\x9a\xb2"  ),  /* 🚲 U+1F6B2 */
     EMOJI("train",          "\xf0\x9f\x9a\x86"  ),  /* 🚆 U+1F686 */
@@ -418,13 +420,13 @@ static const EmojiEntry EMOJIS[] = {
     /* Misc Symbols */
     EMOJI("pin",            "\xf0\x9f\x93\x8c"  ),  /* 📌 U+1F4CC */
     EMOJI("paperclip",      "\xf0\x9f\x93\x8e"  ),  /* 📎 U+1F4CE */
-    EMOJI("eye",            "\xf0\x9f\x91\x81"  ),  /* 👁  U+1F441 */
+    EMOJI("Eye",            "\xf0\x9f\x91\x81"  ),  /* 👁  U+1F441 */
     EMOJI("bulb",           "\xf0\x9f\x92\xa1"  ),  /* 💡 U+1F4A1 */
     EMOJI("battery",        "\xf0\x9f\x94\x8b"  ),  /* 🔋 U+1F50B */
     EMOJI("plug",           "\xf0\x9f\x94\x8c"  ),  /* 🔌 U+1F50C */
-    EMOJI("satellite",      "\xf0\x9f\x9b\xb0"  ),  /* 🛰  U+1F6F0 */
+    EMOJI("Satellite",      "\xf0\x9f\x9b\xb0"  ),  /* 🛰  U+1F6F0 */
     EMOJI("flag",           "\xf0\x9f\x9a\xa9"  ),  /* 🚩 U+1F6A9 */
-    EMOJI("label",          "\xf0\x9f\x8f\xb7"  ),  /* 🏷  U+1F3F7 */
+    EMOJI("Label",          "\xf0\x9f\x8f\xb7"  ),  /* 🏷  U+1F3F7 */
     EMOJI("memo",           "\xf0\x9f\x93\x9d"  ),  /* 📝 U+1F4DD */
 
     /* Colored Squares */
@@ -442,16 +444,36 @@ static const EmojiEntry EMOJIS[] = {
 
 #define EMOJI_COUNT (sizeof(EMOJIS) / sizeof(EMOJIS[0]))
 
-/** Find emoji entry by shortcode name (linear scan over EMOJIS table) */
+/** Case-insensitive name comparison (ASCII only) */
+static int emoji_name_eq(const char *input, const char *table, size_t len)
+{
+    for (size_t i = 0; i < len; i++) {
+        unsigned char a = (unsigned char)input[i];
+        unsigned char b = (unsigned char)table[i];
+        if (a >= 'A' && a <= 'Z') a += 32;
+        if (b >= 'A' && b <= 'Z') b += 32;
+        if (a != b) return 0;
+    }
+    return 1;
+}
+
+/** Find emoji entry by shortcode name (case-insensitive linear scan).
+    Terminal display width is encoded in the table name: leading uppercase
+    letter = 1 cell, leading lowercase = 2 cells. */
 static const EmojiEntry *lookup_emoji(const char *s, size_t len)
 {
     for (size_t i = 0; i < EMOJI_COUNT; ++i) {
-        if (len == EMOJIS[i].len &&
-            memcmp(s, EMOJIS[i].name, len) == 0) {
+        if (len == EMOJIS[i].len && emoji_name_eq(s, EMOJIS[i].name, len))
             return &EMOJIS[i];
-        }
     }
     return NULL;
+}
+
+/** Get terminal display width of an emoji from its table name.
+    Leading uppercase = 1 cell (narrow symbol), lowercase = 2 cells. */
+static int emoji_name_width(const EmojiEntry *em)
+{
+    return (em->name[0] >= 'A' && em->name[0] <= 'Z') ? 1 : 2;
 }
 
 #endif /* ANSI_PRINT_EMOJI */
@@ -589,6 +611,7 @@ typedef struct {
         const char *emoji;     /* TOK_EMOJI: UTF-8 string pointer */
         uint32_t    codepoint; /* TOK_UNICODE: parsed codepoint value */
     } val;
+    uint8_t emoji_width;       /* TOK_EMOJI: terminal display width (1 or 2) */
 } MarkupToken;
 
 /** Advance *pos past the next markup token and fill tok.
@@ -639,6 +662,7 @@ static int next_markup_token(const char **pos, MarkupToken *tok)
                 if (em) {
                     tok->type = TOK_EMOJI;
                     tok->val.emoji = em->utf8;
+                    tok->emoji_width = emoji_name_width(em);
                     *pos = end + 1; return 1;
                 }
             }
@@ -1153,158 +1177,34 @@ void ansi_vprint(const char *fmt, va_list ap)
     ansi_emit(ansi_vformat(fmt, ap));
 }
 
-#if ANSI_PRINT_BANNER
-
-/** Count visible characters in plain text (skips UTF-8 continuation bytes) */
-static int banner_visible_len(const char *p, int byte_len)
-{
-    int vis = 0;
-    for (int i = 0; i < byte_len; i++) {
-        if (!((unsigned char)p[i] >= 0x80 && (unsigned char)p[i] <= 0xBF)) /* skip UTF-8 continuation bytes */
-            vis++;
-    }
-    return vis;
-}
-
-/** Emit up to max_vis visible characters from plain text, return bytes consumed */
-static int banner_emit_vis(const char *p, int byte_len, int max_vis)
-{
-    int vis = 0, i = 0;
-    while (i < byte_len && vis < max_vis) {
-        unsigned char c = (unsigned char)p[i];
-        m_putc_function(c);
-        i++;
-        if (!(c >= 0x80 && c <= 0xBF)) /* not a UTF-8 continuation byte */
-            vis++;
-        /* Drain continuation bytes of the character we just started */
-        while (i < byte_len &&
-               (unsigned char)p[i] >= 0x80 && (unsigned char)p[i] <= 0xBF) {
-            m_putc_function(p[i]);
-            i++;
-        }
-    }
-    return i;
-}
-
-void ansi_banner(const char *color, int width, ansi_align_t align,
-                 const char *fmt, ...)
-{
-    if (!fmt || !m_buf || !m_buf_size) return;
-
-    /* Format text into buffer */
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(m_buf, m_buf_size, fmt, ap);
-    va_end(ap);
-
-    /* Compute effective width: if 0, auto-size to longest line (visible chars) */
-    if (width <= 0) {
-        width = 0;
-        const char *p = m_buf;
-        while (*p) {
-            int byte_len = 0;
-            while (p[byte_len] && p[byte_len] != '\n') byte_len++;
-            int vis = banner_visible_len(p, byte_len);
-            if (vis > width) width = vis;
-            p += byte_len;
-            if (*p == '\n') p++;
-        }
-    }
-    if (width < 1) width = 1;
-
-    /* Resolve color name to ANSI foreground code */
-    const char *fg = NULL;
-    if (color) {
-        const AttrEntry *a = lookup_attr(color, strlen(color));
-        if (a) fg = a->fg_code;
-    }
-
-    if (fg && m_color_enabled) output_string(fg);
-
-    /* Top border */
-    output_string(BOX_TOPLEFT);
-    for (int i = 0; i < width + 2; i++) output_string(BOX_HORZ);
-    output_string(BOX_TOPRIGHT);
-    m_putc_function('\n');
-
-    /* Walk the buffer line-by-line (split on '\n'), emitting each
-       as a bordered row:  ║ <pad> text <pad> ║ */
-    const char *p = m_buf;
-    do {
-        const char *eol = p;
-        while (*eol && *eol != '\n') eol++;
-        int byte_len = (int)(eol - p);
-        int vis_len = banner_visible_len(p, byte_len);
-
-        output_string(BOX_VERT);
-        m_putc_function(' ');
-
-        /* Truncate line to box width, then compute alignment padding */
-        int out = vis_len > width ? width : vis_len;
-        int pad = width - out;
-        int pad_left = 0;
-        if (align == ANSI_ALIGN_CENTER)      pad_left = pad / 2;
-        else if (align == ANSI_ALIGN_RIGHT)  pad_left = pad;
-        int pad_right = pad - pad_left;
-
-        for (int i = 0; i < pad_left; i++)  m_putc_function(' ');
-        banner_emit_vis(p, byte_len, out);
-        for (int i = 0; i < pad_right; i++) m_putc_function(' ');
-
-        m_putc_function(' ');
-        output_string(BOX_VERT);
-        m_putc_function('\n');
-
-        p = (*eol == '\n') ? eol + 1 : eol;
-    } while (*p);
-
-    /* Bottom border */
-    output_string(BOX_BOTTOMLEFT);
-    for (int i = 0; i < width + 2; i++) output_string(BOX_HORZ);
-    output_string(BOX_BOTTOMRIGHT);
-
-    if (fg && m_color_enabled) output_string(RESET);
-    m_putc_function('\n');
-
-    m_flush_function();
-}
-#endif /* ANSI_PRINT_BANNER */
-
 /* ------------------------------------------------------------------------- */
-/* Window (streaming boxed text)                                             */
+/* Shared markup-aware visible-character counting and emission               */
+/* Used by both banner and window functions.                                 */
 /* ------------------------------------------------------------------------- */
 
-#if ANSI_PRINT_WINDOW
+#if ANSI_PRINT_BANNER || ANSI_PRINT_WINDOW
 
-static int         m_window_width = 0;
-static const char *m_window_fg    = NULL;  /* border color from start() */
-
-/** Resolve a color name to its ANSI foreground escape code (or NULL) */
-static const char *window_resolve_color(const char *color)
-{
-    if (!color) return NULL;
-    const AttrEntry *a = lookup_attr(color, strlen(color));
-    return a ? a->fg_code : NULL;
-}
-
-/** Count visible characters in Rich markup text (tags are zero-width) */
-static int window_count_visible(const char *p)
+/** Count visible characters in Rich markup text (tags are zero-width,
+    emoji use their declared display width). */
+static int markup_count_visible(const char *p)
 {
     int count = 0;
     MarkupToken tok;
     while (next_markup_token(&p, &tok)) {
         switch (tok.type) {
         case TOK_TAG: break;                /* tags are invisible */
-        default:      count++; break;       /* everything else is visible */
+#if ANSI_PRINT_EMOJI
+        case TOK_EMOJI: count += tok.emoji_width; break;
+#endif
+        default:      count++; break;       /* everything else is 1 cell */
         }
     }
     return count;
 }
 
-/* Emit text through the Rich markup parser, stopping after max_vis visible
-   characters.  Resets tag state before and after.  Does NOT call flush. */
-/** Emit Rich markup text, stopping after max_vis visible characters */
-static void window_emit_text(const char *p, int max_vis)
+/** Emit Rich markup text, stopping after max_vis visible characters.
+    Resets tag state before and after. Does NOT call flush. */
+static void markup_emit_text(const char *p, int max_vis)
 {
     int vis = 0;
     m_tag_state.fg_code = NULL;
@@ -1346,7 +1246,7 @@ static void window_emit_text(const char *p, int max_vis)
         case TOK_EMOJI:
             emit_char_color();
             output_string(tok.val.emoji);
-            vis++;
+            vis += tok.emoji_width;
             break;
 #endif
 #if ANSI_PRINT_UNICODE
@@ -1363,6 +1263,120 @@ static void window_emit_text(const char *p, int max_vis)
     if (m_color_enabled &&
         (m_tag_state.fg_code || m_tag_state.bg_code || m_tag_state.styles))
         output_string(RESET);
+}
+
+#endif /* ANSI_PRINT_BANNER || ANSI_PRINT_WINDOW */
+
+#if ANSI_PRINT_BANNER
+
+void ansi_banner(const char *color, int width, ansi_align_t align,
+                 const char *fmt, ...)
+{
+    if (!fmt || !m_buf || !m_buf_size) return;
+
+    /* Format text into buffer */
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(m_buf, m_buf_size, fmt, ap);
+    va_end(ap);
+
+    /* Compute effective width: if 0, auto-size to longest line (visible chars).
+       Uses markup-aware counting so emoji shortcodes are measured correctly. */
+    if (width <= 0) {
+        width = 0;
+        char *p = m_buf;
+        while (*p) {
+            char *eol = p;
+            while (*eol && *eol != '\n') eol++;
+            char saved = *eol;
+            *eol = '\0';
+            int vis = markup_count_visible(p);
+            if (vis > width) width = vis;
+            *eol = saved;
+            p = (saved == '\n') ? eol + 1 : eol;
+        }
+    }
+    if (width < 1) width = 1;
+
+    /* Resolve color name to ANSI foreground code */
+    const char *fg = NULL;
+    if (color) {
+        const AttrEntry *a = lookup_attr(color, strlen(color));
+        if (a) fg = a->fg_code;
+    }
+
+    if (fg && m_color_enabled) output_string(fg);
+
+    /* Top border */
+    output_string(BOX_TOPLEFT);
+    for (int i = 0; i < width + 2; i++) output_string(BOX_HORZ);
+    output_string(BOX_TOPRIGHT);
+    m_putc_function('\n');
+
+    /* Walk the buffer line-by-line (split on '\n'), emitting each
+       as a bordered row:  ║ <pad> text <pad> ║
+       Text is processed through the Rich markup parser so emoji
+       shortcodes like :rocket: are expanded. */
+    char *p = m_buf;
+    do {
+        char *eol = p;
+        while (*eol && *eol != '\n') eol++;
+        char saved = *eol;
+        *eol = '\0';                      /* NUL-terminate this line */
+
+        int vis_len = markup_count_visible(p);
+
+        output_string(BOX_VERT);
+        m_putc_function(' ');
+
+        /* Truncate line to box width, then compute alignment padding */
+        int out = vis_len > width ? width : vis_len;
+        int pad = width - out;
+        int pad_left = 0;
+        if (align == ANSI_ALIGN_CENTER)      pad_left = pad / 2;
+        else if (align == ANSI_ALIGN_RIGHT)  pad_left = pad;
+        int pad_right = pad - pad_left;
+
+        for (int i = 0; i < pad_left; i++)  m_putc_function(' ');
+        markup_emit_text(p, out);
+        if (fg && m_color_enabled) output_string(fg);  /* restore border color */
+        for (int i = 0; i < pad_right; i++) m_putc_function(' ');
+
+        m_putc_function(' ');
+        output_string(BOX_VERT);
+        m_putc_function('\n');
+
+        *eol = saved;                      /* restore original character */
+        p = (saved == '\n') ? eol + 1 : eol;
+    } while (*p);
+
+    /* Bottom border */
+    output_string(BOX_BOTTOMLEFT);
+    for (int i = 0; i < width + 2; i++) output_string(BOX_HORZ);
+    output_string(BOX_BOTTOMRIGHT);
+
+    if (fg && m_color_enabled) output_string(RESET);
+    m_putc_function('\n');
+
+    m_flush_function();
+}
+#endif /* ANSI_PRINT_BANNER */
+
+/* ------------------------------------------------------------------------- */
+/* Window (streaming boxed text)                                             */
+/* ------------------------------------------------------------------------- */
+
+#if ANSI_PRINT_WINDOW
+
+static int         m_window_width = 0;
+static const char *m_window_fg    = NULL;  /* border color from start() */
+
+/** Resolve a color name to its ANSI foreground escape code (or NULL) */
+static const char *window_resolve_color(const char *color)
+{
+    if (!color) return NULL;
+    const AttrEntry *a = lookup_attr(color, strlen(color));
+    return a ? a->fg_code : NULL;
 }
 
 /* Emit one padded plain-text line between ║ borders (used for title) */
@@ -1426,7 +1440,7 @@ void ansi_window_line(ansi_align_t align, const char *fmt, ...)
     vsnprintf(m_buf, m_buf_size, fmt, ap);
     va_end(ap);
 
-    int visible   = window_count_visible(m_buf);
+    int visible   = markup_count_visible(m_buf);
     int width     = m_window_width;
     int emit_len  = visible > width ? width : visible;
     int total_pad = width - emit_len;
@@ -1445,7 +1459,7 @@ void ansi_window_line(ansi_align_t align, const char *fmt, ...)
     for (int i = 0; i < pad_left; i++) m_putc_function(' ');
 
     /* Text with Rich markup processing (truncated to window width) */
-    window_emit_text(m_buf, emit_len);
+    markup_emit_text(m_buf, emit_len);
 
     /* Right padding */
     for (int i = 0; i < pad_right; i++) m_putc_function(' ');

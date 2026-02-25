@@ -62,6 +62,53 @@ cursor addressing and updated in place.
 
 ![ansiprint --tui-demo output](img/tui_demo.png)
 
+## Quick Start
+
+A banner, a window with live bar graphs, status indicators, and rainbow text
+-- all in ~30 lines of C:
+
+```c
+#include "ansi_print.h"
+#include <stdio.h>
+
+static void my_putc(int ch)  { putchar(ch); }
+static void my_flush(void)   { fflush(stdout); }
+static char buf[1024];
+
+int main(void)
+{
+    char bar[128];
+    ansi_init(my_putc, my_flush, buf, sizeof(buf));
+    ansi_enable();
+
+    ansi_banner("cyan", 50, ANSI_ALIGN_CENTER,
+                ":rocket: Sensor Gateway v2.1\n"
+                "Build: %s  :gear: %d cores", __DATE__, 4);
+    ansi_puts("\n");
+
+    ansi_window_start("green", 50, ANSI_ALIGN_LEFT, "Live Readings");
+    ansi_window_line(ANSI_ALIGN_LEFT, ":zap: Voltage  %s %5.2f V",
+                     ansi_bar(bar, sizeof(bar), "green", 20,
+                              ANSI_BAR_LIGHT, 3.29, 0.0, 5.0), 3.29);
+    ansi_window_line(ANSI_ALIGN_LEFT, ":fire: Temp     %s %5.1f C",
+                     ansi_bar(bar, sizeof(bar), "yellow", 20,
+                              ANSI_BAR_LIGHT, 42.7, 0.0, 100.0), 42.7);
+    ansi_window_line(ANSI_ALIGN_LEFT, ":warning: Load     %s",
+                     ansi_bar_percent(bar, sizeof(bar), "red", 20,
+                                     ANSI_BAR_LIGHT, 87));
+    ansi_window_end();
+    ansi_puts("\n");
+
+    ansi_puts(":check: [green]Network[/]   :check: [green]Storage[/]"
+              "   :cross: [red]GPS Lock[/]\n");
+    ansi_puts("[bold][rainbow]All systems operational[/rainbow][/]\n");
+    return 0;
+}
+```
+
+Run the bundled version with `ansiprint --quick-start`:
+
+![ansiprint --quick-start output](img/quick_start.png)
 
 ## Features
 
@@ -92,7 +139,7 @@ cursor addressing and updated in place.
 - **Silent truncation.** Output longer than the caller-provided buffer is
   truncated with no error indication.
 
-## Quick Start
+## Basic Usage
 
 ```c
 #include "ansi_print.h"

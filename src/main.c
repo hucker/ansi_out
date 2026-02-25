@@ -507,6 +507,102 @@ static void tui_demo(void)
     tui_cursor_show();
 }
 
+static void emoji_test(void)
+{
+    static const char *base[] = {
+        "check", "cross", "warning", "info", "arrow", "gear",
+        "clock", "hourglass", "thumbs_up", "thumbs_down", "star",
+        "fire", "rocket", "zap", "bug", "wrench", "bell",
+        "sparkles", "package", "link", "stop",
+    };
+    static const char *extended[] = {
+        "smile", "grin", "laugh", "wink", "heart_eyes", "cool",
+        "thinking", "shush", "cry", "sob", "angry", "scream",
+        "sweat", "relieved", "sleeping", "skull",
+        "wave", "clap", "pray", "muscle", "ok_hand", "victory",
+        "point_up", "point_down", "point_left", "point_right",
+        "raised_hand", "pinch",
+        "green_check", "check_box", "ballot_x", "heavy_x", "cross_box",
+        "heart", "broken_heart", "question", "exclamation", "bangbang",
+        "plus", "minus", "multiply", "divide", "infinity", "recycle",
+        "copyright",
+        "arrow_up", "arrow_down", "arrow_left", "arrow_right",
+        "arrow_up_down", "left_right", "back", "forward", "refresh",
+        "key", "lock", "unlock", "shield", "bomb", "hammer",
+        "scissors", "pencil", "pen", "magnifier", "flashlight",
+        "clipboard", "calendar", "envelope", "phone", "laptop",
+        "desktop", "printer", "folder", "file", "trash",
+        "sun", "moon", "cloud", "rain", "snow", "earth",
+        "tree", "leaf", "flower", "seedling",
+        "coffee", "beer", "pizza", "cake", "apple",
+        "dog", "cat", "snake", "bird", "fish", "butterfly",
+        "bee", "ant", "spider", "unicorn",
+        "car", "airplane", "ship", "bicycle", "train", "fuel",
+        "trophy", "medal", "crown", "gem", "money", "gift",
+        "ribbon", "balloon", "party", "confetti",
+        "music", "film", "camera", "art", "palette", "microphone",
+        "pin", "paperclip", "eye", "bulb", "battery", "plug",
+        "satellite", "flag", "label", "memo",
+        "red_box", "orange_box", "yellow_box", "green_box",
+        "blue_box", "purple_box", "brown_box", "white_box", "black_box",
+    };
+    char line[128];
+    int nb = (int)(sizeof(base) / sizeof(base[0]));
+    int ne = (int)(sizeof(extended) / sizeof(extended[0]));
+
+    ansi_window_start("cyan", 24, ANSI_ALIGN_CENTER, "Base Emoji");
+    for (int i = 0; i < nb; i++) {
+        snprintf(line, sizeof(line), ":%s: %-14s", base[i], base[i]);
+        ansi_window_line(ANSI_ALIGN_LEFT, "%s", line);
+    }
+    ansi_window_end();
+
+#if ANSI_PRINT_EXTENDED_EMOJI
+    ansi_window_start("green", 24, ANSI_ALIGN_CENTER, "Extended Emoji");
+    for (int i = 0; i < ne; i++) {
+        snprintf(line, sizeof(line), ":%s: %-14s", extended[i], extended[i]);
+        ansi_window_line(ANSI_ALIGN_LEFT, "%s", line);
+    }
+    ansi_window_end();
+#else
+    (void)extended; (void)ne;
+    ansi_puts("[dim](Extended emoji disabled)[/]\n");
+#endif
+}
+
+static void quick_start(void)
+{
+    char bar[128];
+
+    ansi_banner("cyan", 50, ANSI_ALIGN_CENTER,
+                ":rocket: Sensor Gateway v2.1\n"
+                "Build: %s  :gear: %d cores",
+                __DATE__, 4);
+    ansi_puts("\n");
+
+    ansi_window_start("green", 50, ANSI_ALIGN_LEFT, "Live Readings");
+    ansi_window_line(ANSI_ALIGN_LEFT,
+                     ":zap: Voltage  %s %5.2f V",
+                     ansi_bar(bar, sizeof(bar), "green", 20,
+                              ANSI_BAR_LIGHT, 3.29, 0.0, 5.0),
+                     3.29);
+    ansi_window_line(ANSI_ALIGN_LEFT,
+                     ":fire: Temp     %s %5.1f C",
+                     ansi_bar(bar, sizeof(bar), "yellow", 20,
+                              ANSI_BAR_LIGHT, 42.7, 0.0, 100.0),
+                     42.7);
+    ansi_window_line(ANSI_ALIGN_LEFT,
+                     ":warning: Load     %s",
+                     ansi_bar_percent(bar, sizeof(bar), "red", 20,
+                                     ANSI_BAR_LIGHT, 87));
+    ansi_window_end();
+    ansi_puts("\n");
+
+    ansi_puts(":check: [green]Network[/]   :check: [green]Storage[/]"
+              "   :cross: [red]GPS Lock[/]\n");
+    ansi_puts("[bold][rainbow]All systems operational[/rainbow][/]\n");
+}
+
 int main(int argc, char *argv[])
 {
     ansi_init(my_putc, my_flush, fmt_buf, sizeof(fmt_buf));
@@ -522,10 +618,23 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    if (argc >= 2 && strcmp(argv[1], "--quick-start") == 0) {
+        quick_start();
+        return 0;
+    }
+
+    if (argc >= 2 && strcmp(argv[1], "--emoji-test") == 0) {
+        emoji_test();
+        return 0;
+    }
+
     if (argc < 2) {
-        fprintf(stderr, "Usage: ansiprint [--demo | --tui-demo] [<markup string> ...]\n");
-        fprintf(stderr, "  --demo       Show feature showcase\n");
-        fprintf(stderr, "  --tui-demo   Show positioned TUI widget demo\n");
+        fprintf(stderr, "Usage: ansiprint [--demo | --tui-demo | --quick-start | --emoji-test] "
+                        "[<markup string> ...]\n");
+        fprintf(stderr, "  --demo        Show feature showcase\n");
+        fprintf(stderr, "  --tui-demo    Show positioned TUI widget demo\n");
+        fprintf(stderr, "  --quick-start Quick start example output\n");
+        fprintf(stderr, "  --emoji-test  Show all emoji in a window (width test)\n");
         fprintf(stderr, "Example: ansiprint \"[bold red]Error:[/] something broke\"\n");
         return 1;
     }
