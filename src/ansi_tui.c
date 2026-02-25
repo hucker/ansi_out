@@ -315,7 +315,7 @@ static int tui_center_col(int col, const tui_frame_t *parent,
 
 #endif /* ANSI_TUI_CENTER_ */
 
-#if ANSI_TUI_STATUS || ANSI_TUI_TEXT
+#if ANSI_TUI_STATUS || ANSI_TUI_TEXT || ANSI_TUI_METRIC
 
 /** Compute effective width for a fill-to-parent widget.
  *  If width >= 0, returns width as-is.
@@ -336,7 +336,7 @@ static int tui_effective_width(const tui_placement_t *p, int width)
     return eff > 0 ? eff : 0;
 }
 
-#endif /* ANSI_TUI_STATUS || ANSI_TUI_TEXT */
+#endif /* ANSI_TUI_STATUS || ANSI_TUI_TEXT || ANSI_TUI_METRIC */
 
 /* ------------------------------------------------------------------ */
 /* Frame widget                                                        */
@@ -834,11 +834,11 @@ static const char *metric_color(const tui_metric_t *w, int zone)
 
 /** Center a title on the top border row of a metric widget. */
 static void metric_draw_title(const tui_metric_t *w,
-                               int ar, int ac, const char *color)
+                               int ar, int ac, int iw, const char *color)
 {
     if (!w->title || !w->title[0]) return;
     int title_len = (int)strlen(w->title);
-    int offset = (w->width + 2 - title_len - 2) / 2;  /* center in hz span */
+    int offset = (iw + 2 - title_len - 2) / 2;  /* center in hz span */
     if (offset < 0) offset = 0;
     tui_goto(ar, ac + 1 + offset);
     if (color)
@@ -848,14 +848,14 @@ static void metric_draw_title(const tui_metric_t *w,
 }
 
 /** Draw the metric value as colored foreground text, centered in the interior.
- *  Pads to width+2 chars at ac+1 to clear the full span between borders. */
+ *  Pads to iw+2 chars at ac+1 to clear the full span between borders. */
 static void metric_draw_value(const tui_metric_t *w, int ar, int ac,
-                               double value, const char *zone_color)
+                               int iw, double value, const char *zone_color)
 {
     char vbuf[64];
     snprintf(vbuf, sizeof(vbuf), w->fmt, value);
     int vlen = (int)strlen(vbuf);
-    int fill = w->width + 2;
+    int fill = iw + 2;
     int left_pad = (fill - vlen) / 2;
     if (left_pad < 0) left_pad = 0;
     int right_pad = fill - vlen - left_pad;
@@ -877,16 +877,17 @@ void tui_metric_init(const tui_metric_t *w)
         w->state->zone    = 0;
     }
 
-    int col = tui_center_col(w->place.col, w->place.parent, w->width, w->place.border);
+    int ew = tui_effective_width(&w->place, w->width);
+    int col = tui_center_col(w->place.col, w->place.parent, ew, w->place.border);
     int ar, ac;
     tui_resolve(w->place.parent, w->place.row, col, &ar, &ac);
 
-    tui_draw_border(ar, ac, w->width, 1, color, 0);
-    metric_draw_title(w, ar, ac, color);
+    tui_draw_border(ar, ac, ew, 1, color, 0);
+    metric_draw_title(w, ar, ac, ew, color);
 
     /* Blank the interior */
     tui_goto(ar + 1, ac + 1);
-    tui_pad(w->width + 2);
+    tui_pad(ew + 2);
 }
 
 void tui_metric_update(const tui_metric_t *w, double value, int force)
@@ -899,7 +900,8 @@ void tui_metric_update(const tui_metric_t *w, double value, int force)
     int zone = metric_zone(w, value);
     const char *color = metric_color(w, zone);
 
-    int col = tui_center_col(w->place.col, w->place.parent, w->width, w->place.border);
+    int ew = tui_effective_width(&w->place, w->width);
+    int col = tui_center_col(w->place.col, w->place.parent, ew, w->place.border);
     int ar, ac;
     tui_resolve(w->place.parent, w->place.row, col, &ar, &ac);
 
@@ -913,11 +915,11 @@ void tui_metric_update(const tui_metric_t *w, double value, int force)
         need_border = 1;
     }
     if (need_border) {
-        tui_draw_border(ar, ac, w->width, 1, color, 0);
-        metric_draw_title(w, ar, ac, color);
+        tui_draw_border(ar, ac, ew, 1, color, 0);
+        metric_draw_title(w, ar, ac, ew, color);
     }
 
-    metric_draw_value(w, ar, ac, value, color);
+    metric_draw_value(w, ar, ac, ew, value, color);
 }
 
 void tui_metric_enable(const tui_metric_t *w, int enabled)
@@ -925,7 +927,8 @@ void tui_metric_enable(const tui_metric_t *w, int enabled)
     if (!w || !w->state) return;
     w->state->enabled = enabled;
 
-    int col = tui_center_col(w->place.col, w->place.parent, w->width, w->place.border);
+    int ew = tui_effective_width(&w->place, w->width);
+    int col = tui_center_col(w->place.col, w->place.parent, ew, w->place.border);
     int ar, ac;
     tui_resolve(w->place.parent, w->place.row, col, &ar, &ac);
 
@@ -934,10 +937,10 @@ void tui_metric_enable(const tui_metric_t *w, int enabled)
         w->state->zone = -2;
         tui_metric_update(w, w->state->value, 1);
     } else {
-        tui_draw_border(ar, ac, w->width, 1, "dim", 0);
-        metric_draw_title(w, ar, ac, "dim");
+        tui_draw_border(ar, ac, ew, 1, "dim", 0);
+        metric_draw_title(w, ar, ac, ew, "dim");
         tui_goto(ar + 1, ac + 1);
-        tui_pad(w->width + 2);
+        tui_pad(ew + 2);
     }
 }
 
