@@ -203,6 +203,7 @@
 
 #include <stdarg.h>     // va_list
 #include <stddef.h>     // size_t
+#include <stdint.h>     // uint8_t
 
 #ifdef __cplusplus
 extern "C" {
@@ -579,6 +580,31 @@ char *ansi_get_buf(size_t *out_size);
  */
 void ansi_puts(const char *s);
 
+/* ------------------------------------------------------------------------- */
+/* Emoji table access                                                        */
+/* ------------------------------------------------------------------------- */
+
+#if ANSI_PRINT_EMOJI
+/**
+ * @brief Entry in the emoji shortcode table.
+ *
+ * Width convention: if the first character of `name` is uppercase the emoji
+ * renders as 1 terminal cell; lowercase means 2 cells.  Shortcode lookup
+ * is case-insensitive, so `:warning:` and `:Warning:` both resolve.
+ */
+typedef struct {
+    const char *name;   /**< Shortcode name (e.g. "rocket", "Warning"). */
+    uint8_t     len;    /**< Name length in bytes. */
+    const char *utf8;   /**< UTF-8 byte sequence for the emoji. */
+} ansi_emoji_entry_t;
+
+/** Return a pointer to the first element of the emoji table. */
+const ansi_emoji_entry_t *ansi_emoji_table(void);
+
+/** Return the number of entries in the emoji table. */
+int ansi_emoji_count(void);
+#endif
+
 #if ANSI_PRINT_BANNER || ANSI_PRINT_WINDOW
 /**
  * @brief Text alignment for ansi_banner() and ansi_window functions.
@@ -600,7 +626,8 @@ typedef enum {
  * for prominent status messages, error banners, and pass/fail indicators.
  *
  * The text is printf-formatted first. Embedded newlines create additional
- * rows inside the box. Markup tags are NOT processed in the text.
+ * rows inside the box. Rich markup (color tags, emoji shortcodes, etc.)
+ * is processed in the text.
  *
  * @param color  Color name (e.g. "red", "green", "cyan") from the standard,
  *               extended, or bright color tables. NULL or unknown names

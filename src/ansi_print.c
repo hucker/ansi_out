@@ -228,22 +228,16 @@ static const AttrEntry ATTRS[] = {
 
 #if ANSI_PRINT_EMOJI
 
-typedef struct {
-    const char *name;
-    uint8_t     len;
-    const char *utf8;
-} EmojiEntry;
+/* ansi_emoji_entry_t is defined in ansi_print.h */
 
 /* Pre-compute name length at compile time via sizeof so lookup can reject
    length mismatches immediately without calling strlen on every entry. */
 #define EMOJI(n, u)  { (n), sizeof(n)-1, (u) }
 
-/* NOTE:Capitalized emoji names indicate 1 character width */
-
-/* Grouped by category for readability, not sorted alphabetically.
-   Lookup is linear O(n) — fast enough for this table size. and
-   the fact that we won't have that many emojis*/
-static const EmojiEntry EMOJIS[] = {
+/* Capitalized first letter = 1 terminal cell, lowercase = 2 cells.
+   Grouped by category for readability, not sorted alphabetically.
+   Lookup is case-insensitive linear O(n). */
+static const ansi_emoji_entry_t EMOJIS[] = {
     EMOJI("check",          "\xe2\x9c\x85"      ),  /* ✅ U+2705 */
     EMOJI("cross",          "\xe2\x9d\x8c"      ),  /* ❌ U+274C */
     EMOJI("Warning",        "\xe2\x9a\xa0"      ),  /* ⚠  U+26A0  (1-cell) */
@@ -460,7 +454,7 @@ static int emoji_name_eq(const char *input, const char *table, size_t len)
 /** Find emoji entry by shortcode name (case-insensitive linear scan).
     Terminal display width is encoded in the table name: leading uppercase
     letter = 1 cell, leading lowercase = 2 cells. */
-static const EmojiEntry *lookup_emoji(const char *s, size_t len)
+static const ansi_emoji_entry_t *lookup_emoji(const char *s, size_t len)
 {
     for (size_t i = 0; i < EMOJI_COUNT; ++i) {
         if (len == EMOJIS[i].len && emoji_name_eq(s, EMOJIS[i].name, len))
@@ -471,10 +465,13 @@ static const EmojiEntry *lookup_emoji(const char *s, size_t len)
 
 /** Get terminal display width of an emoji from its table name.
     Leading uppercase = 1 cell (narrow symbol), lowercase = 2 cells. */
-static int emoji_name_width(const EmojiEntry *em)
+static int emoji_name_width(const ansi_emoji_entry_t *em)
 {
     return (em->name[0] >= 'A' && em->name[0] <= 'Z') ? 1 : 2;
 }
+
+const ansi_emoji_entry_t *ansi_emoji_table(void) { return EMOJIS; }
+int ansi_emoji_count(void) { return (int)EMOJI_COUNT; }
 
 #endif /* ANSI_PRINT_EMOJI */
 
@@ -658,7 +655,7 @@ static int next_markup_token(const char **pos, MarkupToken *tok)
             size_t name_len = (size_t)(end - (p + 1));
 #if ANSI_PRINT_EMOJI
             {
-                const EmojiEntry *em = lookup_emoji(p + 1, name_len);
+                const ansi_emoji_entry_t *em = lookup_emoji(p + 1, name_len);
                 if (em) {
                     tok->type = TOK_EMOJI;
                     tok->val.emoji = em->utf8;

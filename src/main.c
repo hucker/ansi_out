@@ -509,65 +509,16 @@ static void tui_demo(void)
 
 static void emoji_test(void)
 {
-    static const char *base[] = {
-        "check", "cross", "warning", "info", "arrow", "gear",
-        "clock", "hourglass", "thumbs_up", "thumbs_down", "star",
-        "fire", "rocket", "zap", "bug", "wrench", "bell",
-        "sparkles", "package", "link", "stop",
-    };
-    static const char *extended[] = {
-        "smile", "grin", "laugh", "wink", "heart_eyes", "cool",
-        "thinking", "shush", "cry", "sob", "angry", "scream",
-        "sweat", "relieved", "sleeping", "skull",
-        "wave", "clap", "pray", "muscle", "ok_hand", "victory",
-        "point_up", "point_down", "point_left", "point_right",
-        "raised_hand", "pinch",
-        "green_check", "check_box", "ballot_x", "heavy_x", "cross_box",
-        "heart", "broken_heart", "question", "exclamation", "bangbang",
-        "plus", "minus", "multiply", "divide", "infinity", "recycle",
-        "copyright",
-        "arrow_up", "arrow_down", "arrow_left", "arrow_right",
-        "arrow_up_down", "left_right", "back", "forward", "refresh",
-        "key", "lock", "unlock", "shield", "bomb", "hammer",
-        "scissors", "pencil", "pen", "magnifier", "flashlight",
-        "clipboard", "calendar", "envelope", "phone", "laptop",
-        "desktop", "printer", "folder", "file", "trash",
-        "sun", "moon", "cloud", "rain", "snow", "earth",
-        "tree", "leaf", "flower", "seedling",
-        "coffee", "beer", "pizza", "cake", "apple",
-        "dog", "cat", "snake", "bird", "fish", "butterfly",
-        "bee", "ant", "spider", "unicorn",
-        "car", "airplane", "ship", "bicycle", "train", "fuel",
-        "trophy", "medal", "crown", "gem", "money", "gift",
-        "ribbon", "balloon", "party", "confetti",
-        "music", "film", "camera", "art", "palette", "microphone",
-        "pin", "paperclip", "eye", "bulb", "battery", "plug",
-        "satellite", "flag", "label", "memo",
-        "red_box", "orange_box", "yellow_box", "green_box",
-        "blue_box", "purple_box", "brown_box", "white_box", "black_box",
-    };
+    const ansi_emoji_entry_t *table = ansi_emoji_table();
+    int count = ansi_emoji_count();
     char line[128];
-    int nb = (int)(sizeof(base) / sizeof(base[0]));
-    int ne = (int)(sizeof(extended) / sizeof(extended[0]));
 
-    ansi_window_start("cyan", 24, ANSI_ALIGN_CENTER, "Base Emoji");
-    for (int i = 0; i < nb; i++) {
-        snprintf(line, sizeof(line), ":%s: %-14s", base[i], base[i]);
+    ansi_window_start("cyan", 24, ANSI_ALIGN_CENTER, "Emoji Width Test");
+    for (int i = 0; i < count; i++) {
+        snprintf(line, sizeof(line), ":%s: %-14s", table[i].name, table[i].name);
         ansi_window_line(ANSI_ALIGN_LEFT, "%s", line);
     }
     ansi_window_end();
-
-#if ANSI_PRINT_EXTENDED_EMOJI
-    ansi_window_start("green", 24, ANSI_ALIGN_CENTER, "Extended Emoji");
-    for (int i = 0; i < ne; i++) {
-        snprintf(line, sizeof(line), ":%s: %-14s", extended[i], extended[i]);
-        ansi_window_line(ANSI_ALIGN_LEFT, "%s", line);
-    }
-    ansi_window_end();
-#else
-    (void)extended; (void)ne;
-    ansi_puts("[dim](Extended emoji disabled)[/]\n");
-#endif
 }
 
 static void quick_start(void)
