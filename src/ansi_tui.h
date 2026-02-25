@@ -126,6 +126,15 @@ void tui_cursor_hide(void);
 /** Show the terminal cursor (ESC[?25h). */
 void tui_cursor_show(void);
 
+/** Begin synchronized output (DEC mode 2026).
+ *  The terminal holds rendering until tui_sync_end() is called.
+ *  Terminals that do not support this mode silently ignore the sequence. */
+void tui_sync_begin(void);
+
+/** End synchronized output (DEC mode 2026).
+ *  The terminal flushes the buffered frame at once. */
+void tui_sync_end(void);
+
 /* ------------------------------------------------------------------ */
 /* Common types (always available — used by macros and parent ptrs)     */
 /* ------------------------------------------------------------------ */
@@ -181,6 +190,17 @@ typedef struct {
 /* ------------------------------------------------------------------ */
 /* Layout helper macros                                                */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Row immediately below a frame.
+ *
+ * A frame's @c height includes its top and bottom borders, so the
+ * first row below is @c row + @c height.
+ *
+ * @param fp  Pointer to a @c tui_frame_t.
+ * @return    Row number immediately below the frame.
+ */
+#define tui_frame_below(fp) ((fp)->row + (fp)->height)
 
 /**
  * Row immediately below a single-line widget.

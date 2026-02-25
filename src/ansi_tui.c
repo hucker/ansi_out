@@ -102,6 +102,16 @@ void tui_cursor_show(void)
     ansi_puts("\x1b[?25h");
 }
 
+void tui_sync_begin(void)
+{
+    ansi_puts("\x1b[?2026h");
+}
+
+void tui_sync_end(void)
+{
+    ansi_puts("\x1b[?2026l");
+}
+
 /* ------------------------------------------------------------------ */
 /* Internal helpers — shared drawing primitives (any widget)            */
 /* ------------------------------------------------------------------ */
