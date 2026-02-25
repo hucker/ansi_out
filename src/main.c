@@ -186,6 +186,7 @@ static const int    cpu_vals[]  = { 73,  82,  65,  91,  58,  77 };
 static const int    mem_vals[]  = { 45,  52,  48,  61,  55,  43 };
 static const double tmp_vals[]  = { 78.3, 80.1, 76.5, 83.7, 74.2, 79.0 };
 static const double vlt_vals[]  = { 3.30, 3.28, 3.25, 3.15, 3.22, 3.31 };
+static const double freq_vals[] = { 1200.0, 1800.0, 1500.0, 2100.0, 800.0, 1600.0 };
 static const int    check_states[] = { 1, 1, 0, 0, 1, 1 };
 static const char  *status_msgs[] = {
     "[green]All systems nominal[/]",
@@ -198,6 +199,22 @@ static const char  *status_msgs[] = {
 static const char *status_colors[] = {
     "green", "cyan", "yellow", "red", "cyan", "green",
 };
+static const char *uptime_vals[] = {
+    "0:00:00", "0:00:01", "0:00:02", "0:00:03", "0:00:04", "0:00:05",
+};
+static const char *io_vals[] = {
+    "[green]12.4 MB/s[/]", "[yellow]34.7 MB/s[/]", "[green]8.1 MB/s[/]",
+    "[red]67.2 MB/s[/]", "[green]15.3 MB/s[/]", "[green]11.9 MB/s[/]",
+};
+static const char *log_msgs[] = {
+    "[dim]sched: idle[/]",
+    "[cyan]sensor: calibrating ADC[/]",
+    "[yellow]therm: temp rising +2.1[/]",
+    "[red]therm: WARNING limit exceeded[/]",
+    "[cyan]cool: fan speed 80%%[/]",
+    "[green]sched: all tasks nominal[/]",
+};
+
 static const char *alert_levels[] = {
     "[green]OK[/]", "[green]OK[/]", "[yellow]WARN[/]",
     "[red]CRIT[/]", "[yellow]WARN[/]", "[green]OK[/]",
@@ -212,25 +229,32 @@ static const char *alert_msgs[] = {
 };
 static const int nframes = 6;
 
+/* Frame layout constants */
+#define TOP_ROW      1
+#define TOP_HEIGHT   14
+#define BOT_ROW      (TOP_ROW + TOP_HEIGHT)          /* row below top frames */
+#define OUTER_HEIGHT 29
+#define BOT_HEIGHT   (OUTER_HEIGHT - BOT_ROW - 2)    /* fill to row -2 */
+
 /* Frames */
 static const tui_frame_t outer_frame = {
-    .row = 1, .col = 1, .width = 100, .height = 30,
+    .row = 1, .col = 1, .width = 100, .height = OUTER_HEIGHT,
     .title = "ANSI TUI WIDGET DEMO", .color = "blue"
 };
 static const tui_frame_t sensors_frame = {
-    .row = 2, .col = 1, .width = 47, .height = 14,
+    .row = TOP_ROW, .col = 1, .width = 47, .height = TOP_HEIGHT,
     .title = "Sensors", .color = "cyan", .parent = &outer_frame
 };
 static const tui_frame_t monitors_frame = {
-    .row = 2, .col = 49, .width = 47, .height = 14,
+    .row = TOP_ROW, .col = 49, .width = 47, .height = TOP_HEIGHT,
     .title = "Monitors", .color = "green", .parent = &outer_frame
 };
 static const tui_frame_t system_frame = {
-    .row = 16, .col = 1, .width = 47, .height = 9,
+    .row = BOT_ROW, .col = 1, .width = 47, .height = BOT_HEIGHT,
     .title = "System", .color = "yellow", .parent = &outer_frame
 };
 static const tui_frame_t alerts_frame = {
-    .row = 16, .col = 49, .width = 47, .height = 9,
+    .row = BOT_ROW, .col = 49, .width = 47, .height = BOT_HEIGHT,
     .title = "Alerts", .color = "red", .parent = &outer_frame
 };
 
@@ -279,7 +303,7 @@ static const tui_bar_t cpu_bar = {
     .state = &cpu_bar_st
 };
 static const tui_bar_t mem_bar = {
-    .place = { .row = 5, .col = 1, .border = ANSI_TUI_BORDER,
+    .place = { .row = 4, .col = 1, .border = ANSI_TUI_BORDER,
                .color = "yellow", .parent = &monitors_frame },
     .bar_width = 35, .label = "MEM ",
     .track = ANSI_BAR_LIGHT,
@@ -291,7 +315,7 @@ static const tui_bar_t mem_bar = {
 /* Metrics */
 static tui_metric_state_t tmp_metric_st, vlt_metric_st;
 static const tui_metric_t tmp_metric = {
-    .place = { .row = 9, .col = 1, .border = ANSI_TUI_BORDER,
+    .place = { .row = 7, .col = 1, .border = ANSI_TUI_BORDER,
                .color = "green", .parent = &monitors_frame },
     .width = 16, .title = "TEMP", .fmt = "%5.1f \xc2\xb0""F",
     .color_lo = "blue", .color_hi = "red",
@@ -299,12 +323,23 @@ static const tui_metric_t tmp_metric = {
     .state = &tmp_metric_st
 };
 static const tui_metric_t vlt_metric = {
-    .place = { .row = 9, .col = 22, .border = ANSI_TUI_BORDER,
+    .place = { .row = 7, .col = 22, .border = ANSI_TUI_BORDER,
                .color = "green", .parent = &monitors_frame },
-    .width = 16, .title = "VDD_3V3", .fmt = "%5.3f V",
+    .width = -1, .title = "VDD_3V3", .fmt = "%5.3f V",
     .color_lo = "red", .color_hi = "red",
     .thresh_lo = 3.20, .thresh_hi = 3.40,
     .state = &vlt_metric_st
+};
+
+/* Frequency metric (emoji in title, next to CPU label in Sensors) */
+static tui_metric_state_t freq_metric_st;
+static const tui_metric_t freq_metric = {
+    .place = { .row = 1, .col = 20, .border = ANSI_TUI_BORDER,
+               .color = "green", .parent = &sensors_frame },
+    .width = 20, .title = ":zap: MHz", .fmt = "%4.0f",
+    .color_lo = "blue", .color_hi = "red",
+    .thresh_lo = 1000.0, .thresh_hi = 2000.0,
+    .state = &freq_metric_st
 };
 
 /* Check */
@@ -335,6 +370,25 @@ static tui_status_t alert_status = {
     .width = 36
 };
 
+/* Borderless widgets in Monitors (rows 10-12) */
+static tui_label_state_t uptime_label_st;
+static const tui_label_t uptime_label = {
+    .place = { .row = 10, .col = 1, .border = ANSI_TUI_NO_BORDER,
+               .color = NULL, .parent = &monitors_frame },
+    .width = 10, .label = "Uptime", .state = &uptime_label_st
+};
+static tui_label_state_t io_label_st;
+static const tui_label_t io_label = {
+    .place = { .row = 11, .col = 1, .border = ANSI_TUI_NO_BORDER,
+               .color = NULL, .parent = &monitors_frame },
+    .width = 15, .label = "I/O", .state = &io_label_st
+};
+static const tui_text_t log_text = {
+    .place = { .row = 12, .col = 1, .border = ANSI_TUI_NO_BORDER,
+               .color = NULL, .parent = &monitors_frame },
+    .width = -1
+};
+
 /* Footer (negative row = from bottom of parent interior) */
 static const tui_text_t footer_text = {
     .place = { .row = -1, .col = 1, .border = ANSI_TUI_NO_BORDER,
@@ -354,8 +408,13 @@ static const tui_text_t tick_text = {
  * terminal resize).  Call with force=0 for incremental updates
  * where only changed widgets redraw.
  */
-static void draw_tui(int frame, int force)
+static void draw_tui(int frame, int tick, int force)
 {
+    /* Double-buffer the screen for smooth updates (DEC mode 2026).
+     * Not all terminals support this; unsupported terminals will
+     * silently ignore it and you may see incremental redraws. */
+    tui_sync_begin();
+
     /* Enable/disable MEM widgets during thermal warning */
     int mem_disabled = (frame == 2 || frame == 3);
     tui_label_enable(&mem_label, !mem_disabled);
@@ -363,6 +422,7 @@ static void draw_tui(int frame, int force)
     tui_bar_enable(&mem_bar, !mem_disabled);
 #endif
 
+    
     /* Color CPU label by load */
     const char *cpu_color = cpu_vals[frame] >= 90 ? "red"
                           : cpu_vals[frame] >= 70 ? "yellow" : "green";
@@ -378,6 +438,7 @@ static void draw_tui(int frame, int force)
 
     tui_metric_update(&tmp_metric, tmp_vals[frame], force);
     tui_metric_update(&vlt_metric, vlt_vals[frame], force);
+    tui_metric_update(&freq_metric, freq_vals[frame], force);
     tui_check_update(&sys_check, check_states[frame], force);
 
     sys_status.place.color = status_colors[frame];
@@ -386,13 +447,20 @@ static void draw_tui(int frame, int force)
 
     tui_label_update(&alert_label, "%s", alert_levels[frame]);
     tui_status_update(&alert_status, "%s", alert_msgs[frame]);
-    tui_text_update(&tick_text, "[dim]t=%d[/]", frame);
+    tui_label_update(&uptime_label, "[cyan]%s[/]", uptime_vals[frame]);
+    tui_label_update(&io_label, "%s", io_vals[frame]);
+    tui_text_update(&log_text, "%s", log_msgs[frame]);
+    tui_text_update(&tick_text, "[dim]t=%d[/]", tick);
+
+    tui_sync_end();
 }
 
 static void tui_demo(void)
 {
     tui_cls();
     tui_cursor_hide();
+
+    tui_sync_begin();
 
     /* Init frames */
     tui_frame_init(&outer_frame);
@@ -412,23 +480,30 @@ static void tui_demo(void)
 #endif
     tui_metric_init(&tmp_metric);
     tui_metric_init(&vlt_metric);
+    tui_metric_init(&freq_metric);
     tui_check_init(&sys_check, 1);
     tui_status_init(&sys_status);
     tui_label_init(&alert_label);
     tui_status_init(&alert_status);
+    tui_label_init(&uptime_label);
+    tui_label_init(&io_label);
+    tui_text_init(&log_text);
     tui_text_init(&footer_text);
-    tui_text_update(&footer_text, "[dim]Live update demo — 5 seconds[/]");
+    tui_text_update(&footer_text, "[dim]Live update demo — %d frames[/]", nframes * 4);
     tui_text_init(&tick_text);
 
-    /* Draw loop: force=1 on first frame, force=0 thereafter */
-    for (int i = 0; i < nframes; i++) {
-        draw_tui(i, i == 0 ? 1 : 0);
+    tui_sync_end();
+
+    /* Draw loop: four full cycles, quarter-second steps */
+    int total = nframes * 4;
+    for (int i = 0; i < total; i++) {
+        draw_tui(i % nframes, i, i == 0 ? 1 : 0);
         my_flush();
-        if (i < nframes - 1) sleep(1);
+        if (i < total - 1) usleep(120000);
     }
 
     /* Park cursor below the frame */
-    tui_goto(31, 1);
+    tui_goto(OUTER_HEIGHT + 1, 1);
     tui_cursor_show();
 }
 
