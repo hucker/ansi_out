@@ -2,7 +2,7 @@
 
 ![version](https://img.shields.io/badge/version-1.3.0-blue "Library version")
 ![license](https://img.shields.io/badge/license-MIT-green "MIT License")
-![test-full](https://img.shields.io/badge/test--full-260%20passed-brightgreen "All features enabled")
+![test-full](https://img.shields.io/badge/test--full-272%20passed-brightgreen "All features enabled")
 ![test-minimal](https://img.shields.io/badge/test--minimal-69%20passed-brightgreen "All optional features disabled")
 ![C standard](https://img.shields.io/badge/C-C99-orange "Requires C99 compiler")
 
@@ -24,6 +24,26 @@ Typical use cases:
 - CLI tool output (errors, warnings, progress)
 - Colorized log files and diagnostic messages
 - Build system and test runner output
+
+## Design Goals
+
+1. **Rich terminal output** -- colors, styles, emoji, gradients, box drawing,
+   bar graphs. If it can be done with ANSI escapes and UTF-8, it belongs here.
+2. **Any ANSI terminal** -- output goes through a caller-provided `putc`, so the
+   same code works on a desktop terminal, a UART console, a USB CDC port, or a
+   log file. No `stdio` dependency in the library.
+3. **Ruthlessly memory-efficient** -- zero dynamic allocation, one caller-owned
+   buffer, no hidden state beyond a few static pointers. Safe for
+   microcontrollers with single-digit KB of RAM.
+4. **Enable only what you use** -- every feature (emoji, gradients, banners,
+   windows, bars) is behind a compile-time flag. `ANSI_PRINT_MINIMAL` disables
+   them all; turn on just what you need and pay only for that code and data.
+5. **Many features, small cost** -- the bias is toward adding capabilities, not
+   gatekeeping them. Each feature should be small enough that enabling it is an
+   easy decision. If a feature makes the binary noticeably larger, find a way to
+   shrink it or split it.
+6. **Portable C99** -- no compiler extensions, no platform headers in library
+   code. Builds with any conforming C99 toolchain.
 
 ## Why Not Manually `#define RED "\033[31m"`?
 
@@ -176,12 +196,13 @@ int main(void)
 
 Copy these into your project:
 
-| File               | Purpose                                  |
-| ------------------ | ---------------------------------------- |
-| `src/ansi_print.h` | Public API header                        |
-| `src/ansi_print.c` | Implementation (single translation unit) |
-| `src/ansi_tui.h`   | TUI widget layer header (optional)       |
-| `src/ansi_tui.c`   | TUI widget implementation (optional)     |
+| File                | Purpose                                  |
+| ------------------- | ---------------------------------------- |
+| `src/ansi_print.h`  | Public API header                        |
+| `src/ansi_print.c`  | Implementation (single translation unit) |
+| `src/emoji_std.inc` | Default emoji table (included by .c)     |
+| `src/ansi_tui.h`    | TUI widget layer header (optional)       |
+| `src/ansi_tui.c`    | TUI widget implementation (optional)     |
 
 ### CMake
 
@@ -279,6 +300,7 @@ Or on the command line: `-DANSI_PRINT_MINIMAL`
 | `ANSI_PRINT_BANNER`          | 1                 | `ansi_banner()` boxed text output                   |
 | `ANSI_PRINT_WINDOW`          | 1                 | `ansi_window_start/line/end()` streaming boxed text |
 | `ANSI_PRINT_BAR`             | 1                 | `ansi_bar()` inline horizontal bar graphs           |
+| `ANSI_PRINT_EMOJI_FONT`      | `..FONT_STD` (0)  | Emoji table variant (display-width tuning)          |
 | `ANSI_PRINT_BOX_STYLE`       | `ANSI_BOX_DOUBLE` | Box-drawing character set for banner/window borders |
 
 ### TUI Feature Macros
@@ -298,10 +320,12 @@ following the same pattern — all default to enabled, all disabled by
 | `ANSI_TUI_TEXT`    | 1       | Generic text widget                                 |
 | `ANSI_TUI_CHECK`   | 1       | Check/cross indicator (requires `ANSI_PRINT_EMOJI`) |
 | `ANSI_TUI_METRIC`  | 1       | Threshold-based metric gauge                        |
+| `ANSI_TUI_EBAR`    | 1       | Emoji bar widget (requires `ANSI_PRINT_EMOJI`)      |
 
 `ANSI_TUI_BAR` and `ANSI_TUI_PBAR` are forced off when `ANSI_PRINT_BAR=0` (no
 underlying bar renderer).  `ANSI_TUI_CHECK` is forced off when
-`ANSI_PRINT_EMOJI=0` (no emoji shortcode support).
+`ANSI_PRINT_EMOJI=0`.  `ANSI_TUI_EBAR` produces a compile error (`#error`)
+when enabled without `ANSI_PRINT_EMOJI=1`.
 
 The `tui_frame_t` struct and `tui_border_t` enum are always defined regardless
 of flags, since all widget types reference them via their `parent` pointer.
@@ -370,6 +394,45 @@ Or define before including the header:
 #include "ansi_print.h"
 ```
 
+#### Emoji Font Tables
+
+Different terminals and fonts render emoji at different widths (1 vs 2 cells).
+The emoji table encodes each entry's display width in its name: an uppercase
+first letter means 1 cell (`"Warning"` → ⚠), lowercase means 2 cells
+(`"fire"` → 🔥).  Lookup is case-insensitive, so `:warning:` still works.
+
+The default table lives in `src/emoji_std.inc` and is tuned for common desktop
+terminals (Windows Terminal, mintty, etc.).  To support a terminal or font with
+different widths, create a new `.inc` file and select it at compile time.
+
+**To add a new emoji font variant:**
+
+1. Copy `src/emoji_std.inc` to a new file, e.g. `src/emoji_nerd.inc`
+2. Adjust name capitalizations for your target terminal's widths — run
+   `ansiprint --emoji-test` to visually check alignment
+3. Add a constant in `ansi_print.h` next to the existing font definitions:
+
+   ```c
+   #define ANSI_EMOJI_FONT_NERD    1
+   ```
+
+4. Add an `#elif` in `ansi_print.c` in the font selection block:
+
+   ```c
+   #elif ANSI_PRINT_EMOJI_FONT == ANSI_EMOJI_FONT_NERD
+   #  include "emoji_nerd.inc"
+   ```
+
+5. Compile with the flag:
+
+   ```bash
+   gcc -DANSI_PRINT_EMOJI_FONT=ANSI_EMOJI_FONT_NERD ...
+   ```
+
+The `.inc` files are plain C data fragments — just `EMOJI()` macro invocations
+inside the array braces.  They can also add or remove entries for fonts that
+support different emoji sets (e.g. Nerd Fonts add hundreds of extra glyphs).
+
 ### Flash Impact per Feature
 
 Each row shows the `.text` section size when a single feature flag is enabled on
@@ -386,13 +449,13 @@ particularly RAM usage (~60-70 B vs ~100 B on 64-bit).
 | `ANSI_PRINT_BRIGHT_COLORS`   |  4272 B |   +527 B | 8 bright color name entries       |
 | `ANSI_PRINT_STYLES`          |  4352 B |   +607 B | 6 style attributes                |
 | `ANSI_PRINT_EXTENDED_COLORS` |  4571 B |   +826 B | 12 extra color name entries       |
-| `ANSI_PRINT_EMOJI`           |  4729 B |   +984 B | 21 core emoji shortcodes          |
+| `ANSI_PRINT_EMOJI`           |  4814 B |  +1069 B | 21 core emoji shortcodes          |
 | `ANSI_PRINT_BAR`             |  4810 B |  +1065 B | Bar graphs with block elements    |
-| `ANSI_PRINT_BANNER`          |  4946 B |  +1201 B | Boxed text with box-drawing chars |
-| `ANSI_PRINT_GRADIENTS`       |  5368 B |  +1623 B | Rainbow + gradient (24-bit color) |
+| `ANSI_PRINT_BANNER`          |  5449 B |  +1704 B | Boxed text with box-drawing chars |
+| `ANSI_PRINT_GRADIENTS`       |  5374 B |  +1629 B | Rainbow + gradient (24-bit color) |
 | `ANSI_PRINT_WINDOW`          |  6202 B |  +2457 B | Streaming boxed window output     |
-| `ANSI_PRINT_EXTENDED_EMOJI`  |  9804 B |  +6059 B | +130 emoji (requires `EMOJI`)     |
-| **Full build (all enabled)** | 18690 B | +14945 B | Everything                        |
+| `ANSI_PRINT_EXTENDED_EMOJI`  |  9983 B |  +6238 B | +130 emoji (requires `EMOJI`)     |
+| **Full build (all enabled)** | 18800 B | +15055 B | Everything                        |
 
 > Each delta is measured independently (minimal + one flag).  Deltas overlap
 > due to shared code, so individual deltas do not sum to the full build delta.
@@ -411,16 +474,17 @@ helpers, etc.), so individual deltas do not sum to the full build delta.
 
 | Component / Flag   |   .text |   Delta | Notes                            |
 | ------------------ | ------: | ------: | -------------------------------- |
-| *ansi_print lib*   | 18829 B |       — | Full library + screen helpers    |
-| `ANSI_TUI_FRAME`   | 20353 B | +1524 B | Border container, no content     |
-| `ANSI_TUI_CHECK`   | 20916 B | +2087 B | Boolean indicator with emoji     |
-| `ANSI_TUI_LABEL`   | 20970 B | +2141 B | "Name: value" with padding       |
-| `ANSI_TUI_STATUS`  | 21039 B | +2210 B | Single-line text field           |
-| `ANSI_TUI_TEXT`    | 21039 B | +2210 B | Generic text with fill/center    |
-| `ANSI_TUI_BAR`     | 21135 B | +2306 B | Bar graph wrapper (`ansi_bar`)   |
-| `ANSI_TUI_PBAR`    | 21232 B | +2403 B | Percent bar (`ansi_bar_percent`) |
-| `ANSI_TUI_METRIC`  | 21599 B | +2770 B | Threshold gauge with zone colors |
-| **Full TUI build** | 27249 B | +8420 B | All widgets enabled              |
+| *ansi_print lib*   | 18981 B |       — | Full library + screen helpers    |
+| `ANSI_TUI_FRAME`   | 20505 B | +1524 B | Border container, no content     |
+| `ANSI_TUI_CHECK`   | 21068 B | +2087 B | Boolean indicator with emoji     |
+| `ANSI_TUI_LABEL`   | 21122 B | +2141 B | "Name: value" with padding       |
+| `ANSI_TUI_STATUS`  | 21191 B | +2210 B | Single-line text field           |
+| `ANSI_TUI_TEXT`    | 21191 B | +2210 B | Generic text with fill/center    |
+| `ANSI_TUI_BAR`     | 21287 B | +2306 B | Bar graph wrapper (`ansi_bar`)   |
+| `ANSI_TUI_PBAR`    | 21384 B | +2403 B | Percent bar (`ansi_bar_percent`) |
+| `ANSI_TUI_EBAR`    | 21403 B | +2422 B | Discrete emoji slot bar graph    |
+| `ANSI_TUI_METRIC`  | 21930 B | +2949 B | Threshold gauge with zone colors |
+| **Full TUI build** | 28500 B | +9519 B | All widgets enabled              |
 
 > Content widgets (all except Frame) share drawing primitives (`draw_border`,
 > `resolve`, `pad`, `center`), so the first content widget pays for the shared
@@ -900,6 +964,14 @@ void tui_cursor_hide(void);
 void tui_cursor_show(void);
 ```
 
+Every widget is split into two structs: a `const` descriptor and a small
+mutable `_state_t`.  The descriptor holds layout, labels, format strings, and
+pointers — everything that never changes at runtime.  Because it is `const`,
+the linker places it in `.rodata` (flash/ROM on embedded targets) rather than
+RAM.  The `_state_t` holds only the values that change (current value, enabled
+flag) and lives in caller-provided RAM.  This split means a screen full of
+widgets costs almost nothing in RAM — only a few bytes of state per widget.
+
 Widget lifecycle — each widget type follows the same init/update/enable
 pattern.  Widgets with numeric or boolean state accept a `force` parameter:
 `force=1` always redraws, `force=0` skips redraw when the value is unchanged.
@@ -944,6 +1016,11 @@ void tui_check_enable(const tui_check_t *w, int enabled);
 void tui_metric_init(const tui_metric_t *w);
 void tui_metric_update(const tui_metric_t *w, double value, int force);
 void tui_metric_enable(const tui_metric_t *w, int enabled);
+
+/* Emoji bar widget (ANSI_TUI_EBAR, requires ANSI_PRINT_EMOJI) */
+void tui_ebar_init(const tui_ebar_t *w);
+void tui_ebar_update(const tui_ebar_t *w, int value, int force);
+void tui_ebar_enable(const tui_ebar_t *w, int enabled);
 ```
 
 All widgets use `tui_placement_t` for positioning (row, col, border, color,
@@ -1035,9 +1112,9 @@ Build config: EMOJI=1 EXTENDED_EMOJI=1 EXTENDED_COLORS=1 BRIGHT_COLORS=1 STYLES=
 
 >> build/test_tui
 Build config: BAR=1 BANNER=1 WINDOW=1 EMOJI=1
-  TUI flags: FRAME=1 LABEL=1 BAR=1 PBAR=1 STATUS=1 TEXT=1 CHECK=1 METRIC=1
+  TUI flags: FRAME=1 LABEL=1 BAR=1 PBAR=1 STATUS=1 TEXT=1 CHECK=1 METRIC=1 EBAR=1
 ...
-115 Tests 0 Failures 0 Ignored
+127 Tests 0 Failures 0 Ignored
 
 $ make test-minimal
 >> build/test_cprint_minimal
@@ -1047,7 +1124,7 @@ Build config: EMOJI=0 EXTENDED_EMOJI=0 EXTENDED_COLORS=0 BRIGHT_COLORS=0 STYLES=
 
 >> build/test_tui_minimal
 Build config: BAR=0 BANNER=0 WINDOW=0 EMOJI=0
-  TUI flags: FRAME=0 LABEL=0 BAR=0 PBAR=0 STATUS=0 TEXT=0 CHECK=0 METRIC=0
+  TUI flags: FRAME=0 LABEL=0 BAR=0 PBAR=0 STATUS=0 TEXT=0 CHECK=0 METRIC=0 EBAR=0
 ...
 5 Tests 0 Failures 0 Ignored
 ```
