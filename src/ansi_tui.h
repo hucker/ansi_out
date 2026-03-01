@@ -99,6 +99,18 @@
 #  define ANSI_TUI_CHECK    0
 #endif
 
+/** @def ANSI_TUI_EBAR
+ *  Enable the emoji bar widget (discrete slot bar graph). Requires ANSI_PRINT_EMOJI.
+ *  Default: 1 (0 if ANSI_PRINT_MINIMAL). */
+#ifndef ANSI_TUI_EBAR
+#  define ANSI_TUI_EBAR     ANSI_PRINT_DEFAULT_
+#endif
+/* Error if EBAR requested without emoji support */
+#if ANSI_TUI_EBAR && !ANSI_PRINT_EMOJI
+#  error "ANSI_TUI_EBAR requires ANSI_PRINT_EMOJI=1"
+#endif
+
+
 /** @def ANSI_TUI_METRIC
  *  Enable the threshold-based metric gauge widget.
  *  Default: 1 (0 if ANSI_PRINT_MINIMAL). */
@@ -174,10 +186,10 @@ struct tui_frame {
 /**
  * Common positioning fields shared by all content widgets.
  *
- * Every content widget (label, bar, status, text, check, metric) embeds
- * a @c tui_placement_t as its first member.  This lets shared helper
- * functions operate on any widget's placement without knowing the
- * widget type.
+ * Every content widget (label, bar, status, text, check, metric, ebar)
+ * embeds a @c tui_placement_t as its first member.  This lets shared
+ * helper functions operate on any widget's placement without knowing
+ * the widget type.
  */
 typedef struct {
     int                row;    /**< Row (1-based; negative = from end of parent). */
@@ -207,7 +219,7 @@ typedef struct {
  *
  * Works with any content widget pointer whose struct embeds a
  * @c tui_placement_t as its @c place member (label, text, bar,
- * status, check, metric).  Bordered widgets occupy 3 rows
+ * status, check, metric, ebar).  Bordered widgets occupy 3 rows
  * (top + content + bottom), unbordered occupy 1.
  *
  * @param wp  Pointer to a widget descriptor.
@@ -220,11 +232,13 @@ typedef struct {
  * Column immediately to the right of a widget.
  *
  * Works with widget types whose @c width field equals the interior
- * width: text, status, and metric.  Bordered widgets add 4 columns
- * of overhead (border char + padding space on each side).
+ * width: text, status, metric, and ebar (when width is set explicitly).
+ * Bordered widgets add 4 columns of overhead (border char + padding
+ * space on each side).
  *
  * @note Not suitable for label (width is value-area only) or bar
- *       (uses bar_width, not width).  For frame, use
+ *       (uses bar_width, not width).  For ebar with width=0 (auto),
+ *       set width explicitly first.  For frame, use
  *       @c (fp)->col + (fp)->width since frame width is already total.
  *
  * @param wp  Pointer to a widget descriptor.
@@ -451,6 +465,48 @@ void tui_check_toggle(const tui_check_t *w);
 void tui_check_enable(const tui_check_t *w, int enabled);
 
 #endif /* ANSI_TUI_CHECK */
+
+/* ------------------------------------------------------------------ */
+/* Emoji bar widget                                                    */
+/* ------------------------------------------------------------------ */
+
+#if ANSI_TUI_EBAR
+
+/** Mutable state for an emoji bar widget (lives in RAM). */
+typedef struct {
+    int enabled;    /**< Nonzero = active, 0 = disabled (drawn dim). */
+    int value;      /**< Current fill count (0 .. count). */
+} tui_ebar_state_t;
+
+/**
+ * Emoji bar widget: discrete slot bar graph using emoji or characters.
+ *
+ * Fills @c value slots from the @c emoji array; unfilled slots show
+ * @c empty (or spaces if NULL).  Each slot is @c slot_width cells wide.
+ * When @c show_value is nonzero, a " value/count" suffix is appended
+ * (e.g. " 3/5").
+ *
+ * If @c width is 0, the interior width is computed automatically from
+ * @c count, @c slot_width, @c label, and @c show_value.  Set @c width
+ * explicitly to enable the @c tui_right() layout macro.
+ */
+typedef struct {
+    tui_placement_t     place;      /**< Common positioning (row, col, border, color, parent). */
+    int                 width;      /**< Interior width in visible chars, or 0 = auto. */
+    const char         *label;      /**< Optional prefix text (e.g. "Rating "), or NULL. */
+    const char *const  *emoji;      /**< Array of shortcode or literal strings per slot. */
+    int                 count;      /**< Number of slots (length of emoji array). */
+    int                 slot_width; /**< Display cells per slot (1 or 2). Caller must ensure each emoji and the empty string render to exactly this many cells. */
+    const char         *empty;      /**< Unfilled slot string (shortcode or literal), NULL = spaces. */
+    int                 show_value; /**< Nonzero = append " value/count" suffix (e.g. " 3/5"). */
+    tui_ebar_state_t   *state;      /**< Mutable state in RAM, or NULL. */
+} tui_ebar_t;
+
+void tui_ebar_init  (const tui_ebar_t *w);
+void tui_ebar_update(const tui_ebar_t *w, int value, int force);
+void tui_ebar_enable(const tui_ebar_t *w, int enabled);
+
+#endif /* ANSI_TUI_EBAR */
 
 /* ------------------------------------------------------------------ */
 /* Metric widget                                                       */

@@ -1546,6 +1546,213 @@ static void test_check_null_widget(void)
 #endif /* ANSI_TUI_CHECK */
 
 /* ------------------------------------------------------------------ */
+/* Emoji bar widget tests                                              */
+/* ------------------------------------------------------------------ */
+
+#if ANSI_TUI_EBAR
+
+static const char *m_ebar_emoji[] = { ":star:", ":star:", ":star:" };
+
+void test_ebar_init(void)
+{
+    tui_ebar_state_t st;
+    const tui_ebar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "yellow" },
+        .label = "R ", .emoji = m_ebar_emoji, .count = 3,
+        .slot_width = 2, .empty = ":white_circle:",
+        .show_value = 0, .state = &st
+    };
+    tui_ebar_init(&w);
+    TEST_ASSERT_EQUAL_INT(1, st.enabled);
+    TEST_ASSERT_EQUAL_INT(0, st.value);
+}
+
+void test_ebar_init_bordered(void)
+{
+    tui_ebar_state_t st;
+    const tui_ebar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_BORDER,
+                   .color = "cyan" },
+        .label = NULL, .emoji = m_ebar_emoji, .count = 3,
+        .slot_width = 2, .empty = NULL,
+        .show_value = 0, .state = &st
+    };
+    capture_reset();
+    tui_ebar_init(&w);
+    /* Border should be drawn */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\x95\x94"));  /* ╔ */
+}
+
+void test_ebar_update(void)
+{
+    tui_ebar_state_t st;
+    const tui_ebar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "yellow" },
+        .label = NULL, .emoji = m_ebar_emoji, .count = 3,
+        .slot_width = 2, .empty = ":white_circle:",
+        .show_value = 0, .state = &st
+    };
+    tui_ebar_init(&w);
+    capture_reset();
+    tui_ebar_update(&w, 2, 1);
+    /* Should contain two star emoji (U+2B50 = \xe2\xad\x90) */
+    TEST_ASSERT_EQUAL_INT(2, st.value);
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\xad\x90"));
+}
+
+void test_ebar_update_with_value(void)
+{
+    tui_ebar_state_t st;
+    const tui_ebar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "yellow" },
+        .label = NULL, .emoji = m_ebar_emoji, .count = 3,
+        .slot_width = 2, .empty = NULL,
+        .show_value = 1, .state = &st
+    };
+    tui_ebar_init(&w);
+    capture_reset();
+    tui_ebar_update(&w, 2, 1);
+    /* Should contain " 2/3" */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, " 2/3"));
+}
+
+void test_ebar_update_no_value(void)
+{
+    tui_ebar_state_t st;
+    const tui_ebar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "yellow" },
+        .label = NULL, .emoji = m_ebar_emoji, .count = 3,
+        .slot_width = 2, .empty = NULL,
+        .show_value = 0, .state = &st
+    };
+    tui_ebar_init(&w);
+    capture_reset();
+    tui_ebar_update(&w, 1, 1);
+    /* Should NOT contain any digit */
+    TEST_ASSERT_NULL(strstr(capture_buf, "1/"));
+}
+
+void test_ebar_force0_skips_same(void)
+{
+    tui_ebar_state_t st;
+    const tui_ebar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "yellow" },
+        .label = NULL, .emoji = m_ebar_emoji, .count = 3,
+        .slot_width = 2, .empty = NULL,
+        .show_value = 0, .state = &st
+    };
+    tui_ebar_init(&w);
+    tui_ebar_update(&w, 2, 1);
+    capture_reset();
+    tui_ebar_update(&w, 2, 0);
+    /* No output — same value, not forced */
+    TEST_ASSERT_EQUAL_INT(0, capture_pos);
+}
+
+void test_ebar_force1_redraws_same(void)
+{
+    tui_ebar_state_t st;
+    const tui_ebar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "yellow" },
+        .label = NULL, .emoji = m_ebar_emoji, .count = 3,
+        .slot_width = 2, .empty = NULL,
+        .show_value = 0, .state = &st
+    };
+    tui_ebar_init(&w);
+    tui_ebar_update(&w, 2, 1);
+    capture_reset();
+    tui_ebar_update(&w, 2, 1);
+    /* Output — forced redraw */
+    TEST_ASSERT_NOT_EQUAL(0, capture_pos);
+}
+
+void test_ebar_null_state_always_draws(void)
+{
+    const tui_ebar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "yellow" },
+        .label = NULL, .emoji = m_ebar_emoji, .count = 3,
+        .slot_width = 2, .empty = NULL,
+        .show_value = 0, .state = NULL
+    };
+    capture_reset();
+    tui_ebar_update(&w, 1, 0);
+    /* No state → always draws */
+    TEST_ASSERT_NOT_EQUAL(0, capture_pos);
+}
+
+void test_ebar_disable_blocks(void)
+{
+    tui_ebar_state_t st;
+    const tui_ebar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "yellow" },
+        .label = NULL, .emoji = m_ebar_emoji, .count = 3,
+        .slot_width = 2, .empty = NULL,
+        .show_value = 0, .state = &st
+    };
+    tui_ebar_init(&w);
+    tui_ebar_enable(&w, 0);
+    capture_reset();
+    tui_ebar_update(&w, 2, 1);
+    /* Disabled — no output */
+    TEST_ASSERT_EQUAL_INT(0, capture_pos);
+}
+
+void test_ebar_enable_restores(void)
+{
+    tui_ebar_state_t st;
+    const tui_ebar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "yellow" },
+        .label = NULL, .emoji = m_ebar_emoji, .count = 3,
+        .slot_width = 2, .empty = NULL,
+        .show_value = 0, .state = &st
+    };
+    tui_ebar_init(&w);
+    tui_ebar_update(&w, 2, 1);
+    tui_ebar_enable(&w, 0);
+    capture_reset();
+    tui_ebar_enable(&w, 1);
+    /* Re-enabled — should draw stars */
+    TEST_ASSERT_NOT_NULL(strstr(capture_buf, "\xe2\xad\x90"));
+}
+
+void test_ebar_null_widget(void)
+{
+    tui_ebar_init(NULL);
+    tui_ebar_update(NULL, 0, 1);
+    tui_ebar_enable(NULL, 1);
+    /* No crash */
+    TEST_ASSERT_EQUAL_INT(0, capture_pos);
+}
+
+void test_ebar_clamps_value(void)
+{
+    tui_ebar_state_t st;
+    const tui_ebar_t w = {
+        .place = { .row = 1, .col = 1, .border = ANSI_TUI_NO_BORDER,
+                   .color = "yellow" },
+        .label = NULL, .emoji = m_ebar_emoji, .count = 3,
+        .slot_width = 2, .empty = NULL,
+        .show_value = 0, .state = &st
+    };
+    tui_ebar_init(&w);
+    tui_ebar_update(&w, 99, 1);
+    TEST_ASSERT_EQUAL_INT(3, st.value);
+    tui_ebar_update(&w, -5, 1);
+    TEST_ASSERT_EQUAL_INT(0, st.value);
+}
+
+#endif /* ANSI_TUI_EBAR */
+
+/* ------------------------------------------------------------------ */
 /* Enable/disable tests                                                */
 /* ------------------------------------------------------------------ */
 
@@ -2035,6 +2242,7 @@ static void print_config(void)
     printf(" TEXT=%d", ANSI_TUI_TEXT);
     printf(" CHECK=%d", ANSI_TUI_CHECK);
     printf(" METRIC=%d", ANSI_TUI_METRIC);
+    printf(" EBAR=%d", ANSI_TUI_EBAR);
     printf("\n");
 }
 
@@ -2175,6 +2383,18 @@ int main(void)
     RUN_TEST(test_check_null_widget);
 #endif
 
+    /* Emoji bar widget */
+#if ANSI_TUI_EBAR
+    RUN_TEST(test_ebar_init);
+    RUN_TEST(test_ebar_init_bordered);
+    RUN_TEST(test_ebar_update);
+    RUN_TEST(test_ebar_update_with_value);
+    RUN_TEST(test_ebar_update_no_value);
+    RUN_TEST(test_ebar_null_state_always_draws);
+    RUN_TEST(test_ebar_null_widget);
+    RUN_TEST(test_ebar_clamps_value);
+#endif
+
     /* Text widget */
 #if ANSI_TUI_TEXT
     RUN_TEST(test_text_init_no_border);
@@ -2219,6 +2439,10 @@ int main(void)
     RUN_TEST(test_check_disable_blocks_update);
     RUN_TEST(test_check_enable_restores_state);
 #endif
+#if ANSI_TUI_EBAR
+    RUN_TEST(test_ebar_disable_blocks);
+    RUN_TEST(test_ebar_enable_restores);
+#endif
 
     /* Metric widget */
 #if ANSI_TUI_METRIC
@@ -2255,6 +2479,10 @@ int main(void)
     RUN_TEST(test_metric_force0_skips_same);
     RUN_TEST(test_metric_force0_redraws_on_change);
     RUN_TEST(test_metric_force1_redraws_border);
+#endif
+#if ANSI_TUI_EBAR
+    RUN_TEST(test_ebar_force0_skips_same);
+    RUN_TEST(test_ebar_force1_redraws_same);
 #endif
 
     return UNITY_END();

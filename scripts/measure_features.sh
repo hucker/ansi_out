@@ -88,13 +88,14 @@ echo "=== TUI widget features (ansi_print.c + ansi_tui.c combined) ==="
 echo ""
 
 # TUI minimal baseline: all ANSI_PRINT features enabled, all TUI widgets disabled
-tui_min=$(get_text_tui "-DANSI_PRINT_NO_APP_CFG -DANSI_TUI_FRAME=0 -DANSI_TUI_LABEL=0 -DANSI_TUI_BAR=0 -DANSI_TUI_PBAR=0 -DANSI_TUI_STATUS=0 -DANSI_TUI_TEXT=0 -DANSI_TUI_CHECK=0 -DANSI_TUI_METRIC=0")
+tui_min=$(get_text_tui "-DANSI_PRINT_NO_APP_CFG -DANSI_TUI_FRAME=0 -DANSI_TUI_LABEL=0 -DANSI_TUI_BAR=0 -DANSI_TUI_PBAR=0 -DANSI_TUI_STATUS=0 -DANSI_TUI_TEXT=0 -DANSI_TUI_CHECK=0 -DANSI_TUI_METRIC=0 -DANSI_TUI_EBAR=0")
 printf "%-30s %6s B\n" "TUI baseline (no widgets)" "$tui_min"
 
 # Each TUI widget individually on top of TUI baseline
 for feat in ANSI_TUI_FRAME ANSI_TUI_LABEL ANSI_TUI_BAR ANSI_TUI_PBAR \
-            ANSI_TUI_STATUS ANSI_TUI_TEXT ANSI_TUI_CHECK ANSI_TUI_METRIC; do
-    val=$(get_text_tui "-DANSI_PRINT_NO_APP_CFG -DANSI_TUI_FRAME=0 -DANSI_TUI_LABEL=0 -DANSI_TUI_BAR=0 -DANSI_TUI_PBAR=0 -DANSI_TUI_STATUS=0 -DANSI_TUI_TEXT=0 -DANSI_TUI_CHECK=0 -DANSI_TUI_METRIC=0 -D${feat}=1")
+            ANSI_TUI_STATUS ANSI_TUI_TEXT ANSI_TUI_CHECK ANSI_TUI_METRIC \
+            ANSI_TUI_EBAR; do
+    val=$(get_text_tui "-DANSI_PRINT_NO_APP_CFG -DANSI_TUI_FRAME=0 -DANSI_TUI_LABEL=0 -DANSI_TUI_BAR=0 -DANSI_TUI_PBAR=0 -DANSI_TUI_STATUS=0 -DANSI_TUI_TEXT=0 -DANSI_TUI_CHECK=0 -DANSI_TUI_METRIC=0 -DANSI_TUI_EBAR=0 -D${feat}=1")
     delta=$((val - tui_min))
     printf "%-30s %6s B  (+%d)\n" "$feat" "$val" "$delta"
 done

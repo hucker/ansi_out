@@ -21,15 +21,16 @@
 
 #define ANSI_TUI_ANY_ (ANSI_TUI_FRAME || ANSI_TUI_LABEL || ANSI_TUI_BAR || \
                         ANSI_TUI_PBAR  || ANSI_TUI_STATUS || ANSI_TUI_TEXT || \
-                        ANSI_TUI_CHECK || ANSI_TUI_METRIC)
+                        ANSI_TUI_CHECK || ANSI_TUI_METRIC || ANSI_TUI_EBAR)
 
 /* Widgets that use tui_widget_goto() (all content widgets except metric) */
 #define ANSI_TUI_GOTO_ (ANSI_TUI_LABEL || ANSI_TUI_BAR || ANSI_TUI_PBAR || \
-                         ANSI_TUI_STATUS || ANSI_TUI_TEXT || ANSI_TUI_CHECK)
+                         ANSI_TUI_STATUS || ANSI_TUI_TEXT || ANSI_TUI_CHECK || \
+                         ANSI_TUI_EBAR)
 
 /* Widgets that use tui_pad() */
 #define ANSI_TUI_PAD_ (ANSI_TUI_LABEL || ANSI_TUI_PBAR || ANSI_TUI_STATUS || \
-                        ANSI_TUI_TEXT || ANSI_TUI_METRIC)
+                        ANSI_TUI_TEXT || ANSI_TUI_METRIC || ANSI_TUI_EBAR)
 
 /* Widgets that use tui_center_col() */
 #define ANSI_TUI_CENTER_ (ANSI_TUI_TEXT || ANSI_TUI_STATUS || ANSI_TUI_METRIC)
@@ -817,6 +818,122 @@ void tui_check_enable(const tui_check_t *w, int enabled)
 }
 
 #endif /* ANSI_TUI_CHECK */
+
+/* ------------------------------------------------------------------ */
+/* Emoji bar widget                                                    */
+/* ------------------------------------------------------------------ */
+
+#if ANSI_TUI_EBAR
+
+/** Compute the interior width for an emoji bar widget.
+ *  If w->width > 0, use it; otherwise derive from count/slot_width/label/show_value. */
+static int ebar_interior_width(const tui_ebar_t *w)
+{
+    if (w->width > 0) return w->width;
+    int label_len = w->label ? (int)strlen(w->label) : 0;
+    int emoji_area = w->count * w->slot_width;
+    int suffix_len = 0;
+    if (w->show_value) {
+        char tmp[16];
+        suffix_len = snprintf(tmp, sizeof(tmp), " %d/%d", w->count, w->count);
+    }
+    return label_len + emoji_area + suffix_len;
+}
+
+void tui_ebar_init(const tui_ebar_t *w)
+{
+    if (!w) return;
+
+    if (w->state) {
+        w->state->enabled = 1;
+        w->state->value   = 0;
+    }
+
+    int iw = ebar_interior_width(w);
+    tui_widget_chrome(&w->place, w->place.col, iw, w->place.color, NULL, NULL);
+
+    /* Draw label prefix */
+    if (w->label) ansi_puts(w->label);
+
+    /* Initial draw with value 0 */
+    tui_ebar_update(w, 0, 1);
+}
+
+void tui_ebar_update(const tui_ebar_t *w, int value, int force)
+{
+    if (!w) return;
+    if (w->state && !w->state->enabled) return;
+
+    /* Clamp */
+    if (value < 0)         value = 0;
+    if (value > w->count)  value = w->count;
+
+    /* Skip if unchanged */
+    if (!force && w->state && w->state->value == value) return;
+
+    if (w->state) w->state->value = value;
+
+    /* Position cursor after label */
+    int ir, ic;
+    tui_place_goto(&w->place, w->place.col, &ir, &ic);
+    int label_len = w->label ? (int)strlen(w->label) : 0;
+    tui_goto(ir, ic + label_len);
+
+    /* Emit filled and empty slots */
+    for (int i = 0; i < w->count; i++) {
+        if (i < value) {
+            ansi_print("%s", w->emoji[i]);
+        } else if (w->empty) {
+            ansi_print("%s", w->empty);
+        } else {
+            tui_pad(w->slot_width);
+        }
+    }
+
+    /* Emit value/count suffix */
+    if (w->show_value) {
+        char tmp[16];
+        int max_len = snprintf(tmp, sizeof(tmp), " %d/%d", w->count, w->count);
+        int cur_len = snprintf(tmp, sizeof(tmp), " %d/%d", value, w->count);
+        ansi_puts(tmp);
+        /* Pad to max width so border stays clean */
+        tui_pad(max_len - cur_len);
+    }
+}
+
+void tui_ebar_enable(const tui_ebar_t *w, int enabled)
+{
+    if (!w || !w->state) return;
+    w->state->enabled = enabled;
+
+    int iw = ebar_interior_width(w);
+    const char *color = enabled ? w->place.color : "dim";
+    tui_widget_chrome(&w->place, w->place.col, iw, color, NULL, NULL);
+
+    if (w->label) {
+        if (!enabled)
+            ansi_print("[dim]%s[/]", w->label);
+        else
+            ansi_puts(w->label);
+    }
+
+    if (enabled) {
+        /* Restore from stored state */
+        w->state->enabled = 1;  /* allow update through */
+        tui_ebar_update(w, w->state->value, 1);
+    } else {
+        /* Dim all slots */
+        for (int i = 0; i < w->count; i++)
+            tui_pad(w->slot_width);
+        if (w->show_value) {
+            char tmp[16];
+            int max_len = snprintf(tmp, sizeof(tmp), " %d/%d", w->count, w->count);
+            tui_pad(max_len);
+        }
+    }
+}
+
+#endif /* ANSI_TUI_EBAR */
 
 /* ------------------------------------------------------------------ */
 /* Metric widget                                                       */

@@ -227,6 +227,9 @@ static const char *alert_msgs[] = {
     "[cyan]Recovery in progress[/]",
     "[green]No active alerts[/]",
 };
+static const int rating_vals[] = { 3, 4, 2, 5, 1, 4 };
+static const int heat_vals[]   = { 3, 5, 2, 7, 4, 6 };
+static const int vol_vals[]    = { 8, 11, 5, 15, 10, 13 };
 static const int nframes = 6;
 
 /* Frame layout constants */
@@ -370,6 +373,57 @@ static tui_status_t alert_status = {
     .width = 36
 };
 
+/* Emoji bar widgets */
+#if ANSI_TUI_EBAR
+static const char *rating_emoji[] = {
+    ":star:", ":star:", ":star:", ":star:", ":star:"
+};
+static tui_ebar_state_t rating_st;
+static const tui_ebar_t rating_bar = {
+    .place = { .row = 7, .col = 1, .border = ANSI_TUI_BORDER,
+               .color = "yellow", .parent = &system_frame },
+    .label = "Rating ",
+    .emoji = rating_emoji, .count = 5, .slot_width = 2,
+    .empty = NULL,
+    .show_value = 1,
+    .state = &rating_st
+};
+
+static const char *heat_emoji[] = {
+    ":blue_circle:", ":blue_circle:", ":green_circle:",
+    ":green_circle:", ":yellow_circle:", ":yellow_circle:",
+    ":red_circle:", ":red_circle:"
+};
+static tui_ebar_state_t heat_st;
+static const tui_ebar_t heat_bar = {
+    .place = { .row = 7, .col = 1, .border = ANSI_TUI_NO_BORDER,
+               .color = NULL, .parent = &alerts_frame },
+    .label = "Heat ",
+    .emoji = heat_emoji, .count = 8, .slot_width = 2,
+    .empty = ":white_circle:",
+    .show_value = 0,
+    .state = &heat_st
+};
+
+static const char *vol_emoji[] = {
+    ":green_box:", ":green_box:", ":green_box:", ":green_box:",
+    ":green_box:", ":green_box:", ":green_box:", ":green_box:",
+    ":green_box:", ":green_box:", ":green_box:",
+    ":yellow_box:", ":yellow_box:",
+    ":red_box:", ":red_box:"
+};
+static tui_ebar_state_t vol_st;
+static const tui_ebar_t vol_bar = {
+    .place = { .row = 8, .col = 1, .border = ANSI_TUI_NO_BORDER,
+               .color = NULL, .parent = &alerts_frame },
+    .label = "Vol  ",
+    .emoji = vol_emoji, .count = 15, .slot_width = 2,
+    .empty = ":white_box:",
+    .show_value = 0,
+    .state = &vol_st
+};
+#endif
+
 /* Borderless widgets in Monitors (rows 10-12) */
 static tui_label_state_t uptime_label_st;
 static const tui_label_t uptime_label = {
@@ -447,6 +501,11 @@ static void draw_tui(int frame, int tick, int force)
 
     tui_label_update(&alert_label, "%s", alert_levels[frame]);
     tui_status_update(&alert_status, "%s", alert_msgs[frame]);
+#if ANSI_TUI_EBAR
+    tui_ebar_update(&rating_bar, rating_vals[frame], force);
+    tui_ebar_update(&heat_bar, heat_vals[frame], force);
+    tui_ebar_update(&vol_bar, vol_vals[frame], force);
+#endif
     tui_label_update(&uptime_label, "[cyan]%s[/]", uptime_vals[frame]);
     tui_label_update(&io_label, "%s", io_vals[frame]);
     tui_text_update(&log_text, "%s", log_msgs[frame]);
@@ -485,6 +544,11 @@ static void tui_demo(void)
     tui_status_init(&sys_status);
     tui_label_init(&alert_label);
     tui_status_init(&alert_status);
+#if ANSI_TUI_EBAR
+    tui_ebar_init(&rating_bar);
+    tui_ebar_init(&heat_bar);
+    tui_ebar_init(&vol_bar);
+#endif
     tui_label_init(&uptime_label);
     tui_label_init(&io_label);
     tui_text_init(&log_text);
