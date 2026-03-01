@@ -130,6 +130,17 @@
 #  define ANSI_PRINT_EXTENDED_EMOJI   ANSI_PRINT_DEFAULT_
 #endif
 
+/** @def ANSI_PRINT_EMOJI_FONT
+ *  Select emoji table variant.  Each variant may differ in display-width
+ *  capitalization (uppercase first letter = 1 cell, lowercase = 2 cells).
+ *  Default: ANSI_EMOJI_FONT_STD. */
+#define ANSI_EMOJI_FONT_STD     0   /**< Standard terminal emoji widths. */
+/* #define ANSI_EMOJI_FONT_xxx  1 */  /* add future font variants here */
+
+#ifndef ANSI_PRINT_EMOJI_FONT
+#  define ANSI_PRINT_EMOJI_FONT  ANSI_EMOJI_FONT_STD
+#endif
+
 /** @def ANSI_PRINT_EXTENDED_COLORS
  *  Enable 12 extra named colors: orange, pink, purple, brown, teal, lime, navy,
  *  olive, maroon, aqua, silver, gray. Default: 1 (0 if ANSI_PRINT_MINIMAL). */
